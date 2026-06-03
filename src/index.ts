@@ -1,18 +1,23 @@
 // Import styles
 import './lib/styles/plugin-control.css';
 
-// Main entry point - Core exports
-export { PluginControl } from './lib/core/PluginControl';
+export { DEFAULT_TILESET_URL, ThreeDTilesControl } from './lib/core/ThreeDTilesControl';
+export { ThreeDTilesLayer, ecefToLngLatAlt } from './lib/core/ThreeDTilesLayer';
 
-// Type exports
 export type {
-  PluginControlOptions,
-  PluginState,
-  PluginControlEvent,
-  PluginControlEventHandler,
+  LoadedTilesetMetadata,
+  ThreeDTilesControlEvent,
+  ThreeDTilesControlEventHandler,
+  ThreeDTilesControlOptions,
+  ThreeDTilesControlPosition,
+  ThreeDTilesControlReactProps,
+  ThreeDTilesDecoderOptions,
+  ThreeDTilesItemState,
+  ThreeDTilesLoadOptions,
+  ThreeDTilesState,
+  ThreeDTilesStatus,
 } from './lib/core/types';
 
-// Utility exports
 export {
   clamp,
   formatNumericValue,

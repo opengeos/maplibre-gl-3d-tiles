@@ -1,80 +1,79 @@
 import type { Map } from 'maplibre-gl';
 
-/**
- * Options for configuring the PluginControl
- */
-export interface PluginControlOptions {
-  /**
-   * Whether the control panel should start collapsed (showing only the toggle button)
-   * @default true
-   */
+export type ThreeDTilesControlPosition = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+
+export type ThreeDTilesStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
+export interface ThreeDTilesLoadOptions {
+  tilesetUrl: string;
+  altitudeOffset: number;
+  flyToOnLoad: boolean;
+  visible: boolean;
+}
+
+export interface ThreeDTilesDecoderOptions {
+  dracoDecoderPath: string;
+  ktx2TranscoderPath: string;
+}
+
+export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOptions>, Partial<ThreeDTilesDecoderOptions> {
   collapsed?: boolean;
-
-  /**
-   * Position of the control on the map
-   * @default 'top-right'
-   */
-  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-
-  /**
-   * Title displayed in the control header
-   * @default 'Plugin Control'
-   */
+  position?: ThreeDTilesControlPosition;
   title?: string;
-
-  /**
-   * Width of the control panel in pixels
-   * @default 300
-   */
   panelWidth?: number;
-
-  /**
-   * Custom CSS class name for the control container
-   */
   className?: string;
+  layerId?: string;
 }
 
-/**
- * Internal state of the plugin control
- */
-export interface PluginState {
-  /**
-   * Whether the control panel is currently collapsed
-   */
+export interface ThreeDTilesItemState {
+  id: string;
+  layerId: string;
+  tilesetUrl: string;
+  altitudeOffset: number;
+  visible: boolean;
+  status: ThreeDTilesStatus;
+  error?: string;
+  center?: [number, number];
+  altitude?: number;
+}
+
+export interface ThreeDTilesState {
   collapsed: boolean;
-
-  /**
-   * Current panel width in pixels
-   */
   panelWidth: number;
-
-  /**
-   * Any custom state data
-   */
-  data?: Record<string, unknown>;
+  tilesetUrl: string;
+  altitudeOffset: number;
+  flyToOnLoad: boolean;
+  visible: boolean;
+  status: ThreeDTilesStatus;
+  error?: string;
+  center?: [number, number];
+  altitude?: number;
+  activeTilesetId?: string;
+  tilesets: ThreeDTilesItemState[];
 }
 
-/**
- * Props for the React wrapper component
- */
-export interface PluginControlReactProps extends PluginControlOptions {
-  /**
-   * MapLibre GL map instance
-   */
+export interface ThreeDTilesControlReactProps extends ThreeDTilesControlOptions {
   map: Map;
-
-  /**
-   * Callback fired when the control state changes
-   */
-  onStateChange?: (state: PluginState) => void;
+  onStateChange?: (state: ThreeDTilesState) => void;
 }
 
-/**
- * Event types emitted by the plugin control
- */
-export type PluginControlEvent = 'collapse' | 'expand' | 'statechange';
+export type ThreeDTilesControlEvent =
+  | 'collapse'
+  | 'expand'
+  | 'statechange'
+  | 'loadstart'
+  | 'load'
+  | 'error'
+  | 'remove'
+  | 'visibilitychange';
 
-/**
- * Event handler function type
- */
-export type PluginControlEventHandler = (event: { type: PluginControlEvent; state: PluginState }) => void;
+export type ThreeDTilesControlEventHandler = (event: {
+  type: ThreeDTilesControlEvent;
+  state: ThreeDTilesState;
+}) => void;
+
+export interface LoadedTilesetMetadata {
+  center: [number, number];
+  altitude: number;
+  radius: number;
+}
