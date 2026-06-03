@@ -1,14 +1,17 @@
-// React entry point
-export { PluginControlReact } from './lib/core/PluginControlReact';
+export { ThreeDTilesControlReact } from './lib/core/ThreeDTilesControlReact';
 
-// React hooks
-export { usePluginState } from './lib/hooks';
+export { useThreeDTilesState } from './lib/hooks';
 
-// Re-export types for React consumers
 export type {
-  PluginControlOptions,
-  PluginState,
-  PluginControlReactProps,
-  PluginControlEvent,
-  PluginControlEventHandler,
+  LoadedTilesetMetadata,
+  ThreeDTilesControlEvent,
+  ThreeDTilesControlEventHandler,
+  ThreeDTilesControlOptions,
+  ThreeDTilesControlPosition,
+  ThreeDTilesControlReactProps,
+  ThreeDTilesDecoderOptions,
+  ThreeDTilesItemState,
+  ThreeDTilesLoadOptions,
+  ThreeDTilesState,
+  ThreeDTilesStatus,
 } from './lib/core/types';

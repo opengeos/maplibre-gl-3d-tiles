@@ -1,19 +1,13 @@
-import { PluginControl } from "./lib/core/PluginControl";
-import type { PluginState } from "./lib/core/types";
-import "./lib/styles/plugin-control.css";
-
-type GeoLibreMapControlPosition =
-  | "top-left"
-  | "top-right"
-  | "bottom-left"
-  | "bottom-right";
+import { ThreeDTilesControl } from './lib/core/ThreeDTilesControl';
+import type { ThreeDTilesControlPosition, ThreeDTilesState } from './lib/core/types';
+import './lib/styles/plugin-control.css';
 
 interface GeoLibreAppAPI {
   addMapControl: (
-    control: PluginControl,
-    position?: GeoLibreMapControlPosition,
+    control: ThreeDTilesControl,
+    position?: ThreeDTilesControlPosition,
   ) => boolean;
-  removeMapControl: (control: PluginControl) => void;
+  removeMapControl: (control: ThreeDTilesControl) => void;
 }
 
 interface GeoLibrePlugin {
@@ -22,24 +16,28 @@ interface GeoLibrePlugin {
   version: string;
   activate: (app: GeoLibreAppAPI) => boolean | void;
   deactivate: (app: GeoLibreAppAPI) => void;
-  getMapControlPosition?: () => GeoLibreMapControlPosition;
+  getMapControlPosition?: () => ThreeDTilesControlPosition;
   setMapControlPosition?: (
     app: GeoLibreAppAPI,
-    position: GeoLibreMapControlPosition,
+    position: ThreeDTilesControlPosition,
   ) => boolean | void;
   getProjectState?: () => unknown;
   applyProjectState?: (app: GeoLibreAppAPI, state: unknown) => boolean | void;
 }
 
-let control: PluginControl | null = null;
-let position: GeoLibreMapControlPosition = "top-right";
-let pendingState: Partial<PluginState> | null = null;
+let control: ThreeDTilesControl | null = null;
+let position: ThreeDTilesControlPosition = 'top-right';
+let pendingState: Partial<ThreeDTilesState> | null = null;
 
-function createControl(): PluginControl {
-  const nextControl = new PluginControl({
+function createControl(): ThreeDTilesControl {
+  const nextControl = new ThreeDTilesControl({
     collapsed: pendingState?.collapsed ?? true,
-    panelWidth: pendingState?.panelWidth ?? 300,
-    title: "GeoLibre Plugin Template",
+    panelWidth: pendingState?.panelWidth ?? 360,
+    title: '3D Tiles',
+    tilesetUrl: pendingState?.tilesetUrl,
+    altitudeOffset: pendingState?.altitudeOffset,
+    flyToOnLoad: pendingState?.flyToOnLoad,
+    visible: pendingState?.visible,
   });
 
   if (pendingState) {
@@ -49,24 +47,18 @@ function createControl(): PluginControl {
   return nextControl;
 }
 
-function isPluginState(value: unknown): value is Partial<PluginState> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return false;
-  }
+function isThreeDTilesState(value: unknown): value is Partial<ThreeDTilesState> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
 
   const candidate = value as Record<string, unknown>;
-  if ("collapsed" in candidate && typeof candidate.collapsed !== "boolean") {
-    return false;
-  }
-  if ("panelWidth" in candidate && typeof candidate.panelWidth !== "number") {
-    return false;
-  }
-  if (
-    "data" in candidate &&
-    (typeof candidate.data !== "object" ||
-      candidate.data === null ||
-      Array.isArray(candidate.data))
-  ) {
+  if ('collapsed' in candidate && typeof candidate.collapsed !== 'boolean') return false;
+  if ('panelWidth' in candidate && typeof candidate.panelWidth !== 'number') return false;
+  if ('tilesetUrl' in candidate && typeof candidate.tilesetUrl !== 'string') return false;
+  if ('altitudeOffset' in candidate && typeof candidate.altitudeOffset !== 'number') return false;
+  if ('flyToOnLoad' in candidate && typeof candidate.flyToOnLoad !== 'boolean') return false;
+  if ('visible' in candidate && typeof candidate.visible !== 'boolean') return false;
+  if ('tilesets' in candidate && !Array.isArray(candidate.tilesets)) return false;
+  if ('activeTilesetId' in candidate && typeof candidate.activeTilesetId !== 'string') {
     return false;
   }
 
@@ -74,9 +66,9 @@ function isPluginState(value: unknown): value is Partial<PluginState> {
 }
 
 export const plugin: GeoLibrePlugin = {
-  id: "geolibre-plugin-template",
-  name: "GeoLibre Plugin Template",
-  version: "0.1.0",
+  id: 'maplibre-gl-3d-tiles',
+  name: 'MapLibre GL 3D Tiles',
+  version: '0.1.0',
   activate(app) {
     control = control ?? createControl();
     const added = app.addMapControl(control, position);
@@ -110,7 +102,7 @@ export const plugin: GeoLibrePlugin = {
     return control?.getState() ?? pendingState ?? undefined;
   },
   applyProjectState(_app, state) {
-    if (!isPluginState(state)) return false;
+    if (!isThreeDTilesState(state)) return false;
     pendingState = state;
     control?.setState(state);
   },

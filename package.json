@@ -1,7 +1,7 @@
 {
-  "name": "geolibre-plugin-template",
+  "name": "maplibre-gl-3d-tiles",
   "version": "0.1.0",
-  "description": "A template for creating GeoLibre plugins with MapLibre GL JS controls",
+  "description": "A MapLibre GL JS control for rendering 3D Tiles with three.js",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
@@ -27,7 +27,7 @@
         "default": "./dist/react.cjs"
       }
     },
-    "./style.css": "./dist/geolibre-plugin-template.css"
+    "./style.css": "./dist/maplibre-gl-3d-tiles.css"
   },
   "files": [
     "dist",
@@ -53,7 +53,7 @@
     "prepublishOnly": "npm run build:lib"
   },
   "keywords": [
-    "geolibre",
+    "3d-tiles",
     "maplibre",
     "maplibre-gl",
     "map",
@@ -62,11 +62,15 @@
     "react",
     "typescript"
   ],
-  "author": "Your Name",
+  "author": "giswqs",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-username/geolibre-plugin-template.git"
+    "url": "https://github.com/opengeos/maplibre-gl-3d-tiles.git"
+  },
+  "dependencies": {
+    "3d-tiles-renderer": "^0.4.27",
+    "three": "^0.184.0"
   },
   "peerDependencies": {
     "maplibre-gl": ">=3.0.0",
@@ -87,6 +91,7 @@
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
+    "@types/three": "^0.184.1",
     "@typescript-eslint/eslint-plugin": "^8.18.0",
     "@typescript-eslint/parser": "^8.18.0",
     "@vitejs/plugin-react": "^4.3.0",
