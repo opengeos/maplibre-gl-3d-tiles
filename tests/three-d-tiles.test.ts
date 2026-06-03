@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
+import { plugin } from '../src/geolibre';
+import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
 import { ecefToLngLatAlt } from '../src/lib/core/ThreeDTilesLayer';
 
 function createMockMap() {
@@ -167,5 +168,32 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().tilesets[0]).toEqual(
       expect.objectContaining({ id: 'tileset-2' }),
     );
+  });
+});
+
+describe('GeoLibre plugin', () => {
+  it('uses control defaults when no project tileset state exists', () => {
+    const { map, controlsContainer } = createMockMap();
+    const app = {
+      addMapControl: vi.fn((control: ThreeDTilesControl) => {
+        controlsContainer.appendChild(control.onAdd(map as never));
+        return true;
+      }),
+      removeMapControl: vi.fn((control: ThreeDTilesControl) => {
+        control.onRemove();
+      }),
+    };
+
+    plugin.applyProjectState?.(app, {});
+    plugin.activate(app);
+
+    expect(plugin.getProjectState?.()).toEqual(
+      expect.objectContaining({
+        tilesetUrl: DEFAULT_TILESET_URL,
+        altitudeOffset: -300,
+      }),
+    );
+
+    plugin.deactivate(app);
   });
 });
