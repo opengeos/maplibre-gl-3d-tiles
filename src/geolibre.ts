@@ -67,7 +67,7 @@ function isThreeDTilesState(value: unknown): value is Partial<ThreeDTilesState> 
 
 export const plugin: GeoLibrePlugin = {
   id: 'maplibre-gl-3d-tiles',
-  name: 'MapLibre GL 3D Tiles',
+  name: '3D Tiles',
   version: '0.1.0',
   activate(app) {
     control = control ?? createControl();
