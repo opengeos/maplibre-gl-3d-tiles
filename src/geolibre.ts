@@ -30,15 +30,18 @@ let position: ThreeDTilesControlPosition = 'top-right';
 let pendingState: Partial<ThreeDTilesState> | null = null;
 
 function createControl(): ThreeDTilesControl {
-  const nextControl = new ThreeDTilesControl({
+  const options = {
     collapsed: pendingState?.collapsed ?? true,
     panelWidth: pendingState?.panelWidth ?? 360,
     title: '3D Tiles',
-    tilesetUrl: pendingState?.tilesetUrl,
-    altitudeOffset: pendingState?.altitudeOffset,
-    flyToOnLoad: pendingState?.flyToOnLoad,
-    visible: pendingState?.visible,
-  });
+    ...(pendingState?.tilesetUrl !== undefined ? { tilesetUrl: pendingState.tilesetUrl } : {}),
+    ...(pendingState?.altitudeOffset !== undefined
+      ? { altitudeOffset: pendingState.altitudeOffset }
+      : {}),
+    ...(pendingState?.flyToOnLoad !== undefined ? { flyToOnLoad: pendingState.flyToOnLoad } : {}),
+    ...(pendingState?.visible !== undefined ? { visible: pendingState.visible } : {}),
+  };
+  const nextControl = new ThreeDTilesControl(options);
 
   if (pendingState) {
     nextControl.setState(pendingState);
