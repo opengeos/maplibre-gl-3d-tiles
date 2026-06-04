@@ -35,6 +35,8 @@ function createControl(): ThreeDTilesControl {
     panelWidth: pendingState?.panelWidth ?? 360,
     title: '3D Tiles',
     ...(pendingState?.tilesetUrl !== undefined ? { tilesetUrl: pendingState.tilesetUrl } : {}),
+    ...(pendingState?.layerName !== undefined ? { layerName: pendingState.layerName } : {}),
+    ...(pendingState?.beforeId !== undefined ? { beforeId: pendingState.beforeId } : {}),
     ...(pendingState?.altitudeOffset !== undefined
       ? { altitudeOffset: pendingState.altitudeOffset }
       : {}),
@@ -58,6 +60,8 @@ function isThreeDTilesState(value: unknown): value is Partial<ThreeDTilesState> 
   if ('collapsed' in candidate && typeof candidate.collapsed !== 'boolean') return false;
   if ('panelWidth' in candidate && typeof candidate.panelWidth !== 'number') return false;
   if ('tilesetUrl' in candidate && typeof candidate.tilesetUrl !== 'string') return false;
+  if ('layerName' in candidate && typeof candidate.layerName !== 'string') return false;
+  if ('beforeId' in candidate && typeof candidate.beforeId !== 'string') return false;
   if ('altitudeOffset' in candidate && typeof candidate.altitudeOffset !== 'number') return false;
   if ('flyToOnLoad' in candidate && typeof candidate.flyToOnLoad !== 'boolean') return false;
   if ('opacity' in candidate && typeof candidate.opacity !== 'number') return false;

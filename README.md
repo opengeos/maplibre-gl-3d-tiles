@@ -39,6 +39,7 @@ const map = new maplibregl.Map({
 map.on('load', () => {
   const control = new ThreeDTilesControl({
     collapsed: false,
+    layerName: 'AGI Headquarters',
     tilesetUrl: 'https://pelican-public.s3.amazonaws.com/3dtiles/agi-hq/tileset.json',
     altitudeOffset: -300,
   });
@@ -46,6 +47,8 @@ map.on('load', () => {
   map.addControl(control, 'top-right');
   void control.loadTileset();
   void control.loadTileset('https://example.com/another/tileset.json', {
+    layerName: 'Second tileset',
+    beforeId: 'place-labels',
     altitudeOffset: 0,
   });
 });
@@ -108,6 +111,8 @@ Constructor options include:
 | Option | Type | Default |
 | --- | --- | --- |
 | `tilesetUrl` | `string` | MapLibre example tileset |
+| `layerName` | `string` | `3D Tiles` |
+| `beforeId` | `string` | `undefined` |
 | `altitudeOffset` | `number` | `-300` |
 | `flyToOnLoad` | `boolean` | `true` |
 | `visible` | `boolean` | `true` |

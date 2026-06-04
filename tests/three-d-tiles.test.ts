@@ -21,7 +21,7 @@ function createMockMap() {
     off: vi.fn(),
     once: vi.fn(() => Promise.resolve()),
     isStyleLoaded: vi.fn(() => true),
-    addLayer: vi.fn((layer: { id: string }) => {
+    addLayer: vi.fn((layer: { id: string }, _beforeId?: string) => {
       layers.add(layer.id);
     }),
     removeLayer: vi.fn((id: string) => {
@@ -120,6 +120,18 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().collapsed).toBe(false);
   });
 
+  it('orders URL, layer name, and before layer ID fields first', () => {
+    const { map, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ collapsed: false });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    const labels = [...document.querySelectorAll('.three-d-tiles-field span')].map(
+      (element) => element.textContent,
+    );
+
+    expect(labels.slice(0, 3)).toEqual(['Tileset URL', 'Layer name', 'Before layer ID']);
+  });
+
   it('updates visibility state and emits visibility events', () => {
     const control = new ThreeDTilesControl();
     const handler = vi.fn();
@@ -130,6 +142,7 @@ describe('ThreeDTilesControl', () => {
         {
           id: 'tileset-1',
           layerId: 'test-3d-tiles',
+          layerName: 'Test tileset',
           tilesetUrl: 'https://example.com/tileset.json',
           altitudeOffset: 0,
           opacity: 1,
@@ -159,6 +172,7 @@ describe('ThreeDTilesControl', () => {
         {
           id: 'tileset-1',
           layerId: 'test-3d-tiles',
+          layerName: 'Test tileset',
           tilesetUrl: 'https://example.com/tileset.json',
           altitudeOffset: 0,
           opacity: 1,
@@ -195,22 +209,35 @@ describe('ThreeDTilesControl', () => {
     const { map, controlsContainer } = createMockMap();
     const control = new ThreeDTilesControl({
       layerId: 'test-3d-tiles',
+      layerName: 'Headquarters',
       tilesetUrl: 'https://example.com/tileset.json',
+      beforeId: 'symbol-labels',
     });
 
     controlsContainer.appendChild(control.onAdd(map as never));
     const id = await control.loadTileset();
 
     expect(id).toBe('tileset-1');
-    expect(map.addLayer).toHaveBeenCalledWith(expect.objectContaining({ id: 'test-3d-tiles' }));
+    expect(map.addLayer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'test-3d-tiles' }),
+      'symbol-labels',
+    );
     expect(control.getState()).toEqual(
       expect.objectContaining({
         status: 'loading',
+        layerName: 'Headquarters',
+        beforeId: 'symbol-labels',
         tilesetUrl: 'https://example.com/tileset.json',
         activeTilesetId: 'tileset-1',
       }),
     );
     expect(control.getState().tilesets).toHaveLength(1);
+    expect(control.getState().tilesets[0]).toEqual(
+      expect.objectContaining({
+        layerName: 'Headquarters',
+        beforeId: 'symbol-labels',
+      }),
+    );
   });
 
   it('adds multiple custom layers without replacing existing tilesets', async () => {
@@ -223,26 +250,33 @@ describe('ThreeDTilesControl', () => {
     controlsContainer.appendChild(control.onAdd(map as never));
     await control.loadTileset();
     await control.loadTileset('https://example.com/tileset-b.json', {
+      layerName: 'Second tileset',
+      beforeId: 'building-labels',
       altitudeOffset: 10,
     });
 
     expect(map.addLayer).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ id: 'test-3d-tiles' }),
+      undefined,
     );
     expect(map.addLayer).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({ id: 'test-3d-tiles-tileset-2' }),
+      'building-labels',
     );
     expect(control.getState().tilesets).toEqual([
       expect.objectContaining({
         id: 'tileset-1',
         layerId: 'test-3d-tiles',
+        layerName: '3D Tiles',
         tilesetUrl: 'https://example.com/tileset-a.json',
       }),
       expect.objectContaining({
         id: 'tileset-2',
         layerId: 'test-3d-tiles-tileset-2',
+        layerName: 'Second tileset',
+        beforeId: 'building-labels',
         tilesetUrl: 'https://example.com/tileset-b.json',
         altitudeOffset: 10,
       }),
