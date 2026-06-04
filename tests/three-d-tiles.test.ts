@@ -77,6 +77,7 @@ describe('ThreeDTilesControl', () => {
           layerId: 'test-3d-tiles',
           tilesetUrl: 'https://example.com/tileset.json',
           altitudeOffset: 0,
+          opacity: 1,
           visible: true,
           status: 'loaded',
         },
@@ -91,6 +92,48 @@ describe('ThreeDTilesControl', () => {
       type: 'visibilitychange',
       state: expect.objectContaining({ visible: false }),
     });
+  });
+
+  it('updates opacity state and emits opacity events', () => {
+    const control = new ThreeDTilesControl();
+    const handler = vi.fn();
+
+    control.setState({
+      activeTilesetId: 'tileset-1',
+      tilesets: [
+        {
+          id: 'tileset-1',
+          layerId: 'test-3d-tiles',
+          tilesetUrl: 'https://example.com/tileset.json',
+          altitudeOffset: 0,
+          opacity: 1,
+          visible: true,
+          status: 'loaded',
+        },
+      ],
+    });
+    control.on('opacitychange', handler);
+    control.setOpacity(0.45);
+
+    expect(control.getState().opacity).toBe(0.45);
+    expect(control.getState().tilesets[0].opacity).toBe(0.45);
+    expect(handler).toHaveBeenCalledWith({
+      type: 'opacitychange',
+      state: expect.objectContaining({ opacity: 0.45 }),
+    });
+  });
+
+  it('can keep the panel open when clicking outside', () => {
+    const { map, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({
+      collapsed: false,
+      collapseOnClickOutside: false,
+    });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    document.body.click();
+
+    expect(control.getState().collapsed).toBe(false);
   });
 
   it('adds a custom layer when loading a tileset', async () => {

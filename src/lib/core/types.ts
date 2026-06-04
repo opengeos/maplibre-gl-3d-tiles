@@ -8,6 +8,7 @@ export interface ThreeDTilesLoadOptions {
   tilesetUrl: string;
   altitudeOffset: number;
   flyToOnLoad: boolean;
+  opacity: number;
   visible: boolean;
 }
 
@@ -22,6 +23,7 @@ export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOption
   title?: string;
   panelWidth?: number;
   className?: string;
+  collapseOnClickOutside?: boolean;
   layerId?: string;
 }
 
@@ -30,6 +32,7 @@ export interface ThreeDTilesItemState {
   layerId: string;
   tilesetUrl: string;
   altitudeOffset: number;
+  opacity: number;
   visible: boolean;
   status: ThreeDTilesStatus;
   error?: string;
@@ -43,6 +46,7 @@ export interface ThreeDTilesState {
   tilesetUrl: string;
   altitudeOffset: number;
   flyToOnLoad: boolean;
+  opacity: number;
   visible: boolean;
   status: ThreeDTilesStatus;
   error?: string;
@@ -65,6 +69,7 @@ export type ThreeDTilesControlEvent =
   | 'load'
   | 'error'
   | 'remove'
+  | 'opacitychange'
   | 'visibilitychange';
 
 export type ThreeDTilesControlEventHandler = (event: {

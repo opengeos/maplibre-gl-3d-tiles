@@ -22,10 +22,12 @@ const DEFAULT_OPTIONS: Required<ThreeDTilesControlOptions> = {
   title: '3D Tiles',
   panelWidth: 360,
   className: '',
+  collapseOnClickOutside: true,
   layerId: 'maplibre-gl-3d-tiles',
   tilesetUrl: DEFAULT_TILESET_URL,
   altitudeOffset: -300,
   flyToOnLoad: true,
+  opacity: 1,
   visible: true,
   dracoDecoderPath: DEFAULT_DRACO_PATH,
   ktx2TranscoderPath: DEFAULT_KTX2_PATH,
@@ -69,6 +71,7 @@ export class ThreeDTilesControl implements IControl {
       tilesetUrl: this._options.tilesetUrl,
       altitudeOffset: this._options.altitudeOffset,
       flyToOnLoad: this._options.flyToOnLoad,
+      opacity: this._options.opacity,
       visible: this._options.visible,
       status: 'idle',
       tilesets: [],
@@ -151,6 +154,7 @@ export class ThreeDTilesControl implements IControl {
 
     const altitudeOffset = options?.altitudeOffset ?? this._getAltitudeOffset();
     const flyToOnLoad = options?.flyToOnLoad ?? Boolean(this._flyToCheckbox?.checked);
+    const opacity = options?.opacity ?? this._state.opacity;
     const visible = options?.visible ?? Boolean(this._visibleCheckbox?.checked);
     const id = this._createTilesetId();
     const layerId = this._createLayerId(id);
@@ -159,6 +163,7 @@ export class ThreeDTilesControl implements IControl {
       layerId,
       tilesetUrl: url,
       altitudeOffset,
+      opacity,
       visible,
       status: 'loading',
     };
@@ -168,6 +173,7 @@ export class ThreeDTilesControl implements IControl {
       tilesetUrl: url,
       altitudeOffset,
       flyToOnLoad,
+      opacity,
       visible,
       status: 'loading',
       error: undefined,
@@ -186,6 +192,7 @@ export class ThreeDTilesControl implements IControl {
       id: layerId,
       tilesetUrl: url,
       altitudeOffset,
+      opacity,
       visible,
       dracoDecoderPath: this._options.dracoDecoderPath,
       ktx2TranscoderPath: this._options.ktx2TranscoderPath,
@@ -225,6 +232,7 @@ export class ThreeDTilesControl implements IControl {
       visible: activeTileset?.visible ?? this._state.visible,
       tilesetUrl: activeTileset?.tilesetUrl ?? this._state.tilesetUrl,
       altitudeOffset: activeTileset?.altitudeOffset ?? this._state.altitudeOffset,
+      opacity: activeTileset?.opacity ?? this._state.opacity,
       activeTilesetId: activeTileset?.id,
       tilesets,
     };
@@ -252,6 +260,29 @@ export class ThreeDTilesControl implements IControl {
     this._syncFormFromState();
     this._renderTilesetList();
     this._emit('visibilitychange');
+    this._emit('statechange');
+  }
+
+  setOpacity(
+    opacity: number,
+    id = this._state.activeTilesetId,
+    render = true,
+  ): void {
+    if (!id) return;
+
+    const nextOpacity = Math.min(1, Math.max(0, opacity));
+    this._layers.get(id)?.setOpacity(nextOpacity);
+    this._state = {
+      ...this._state,
+      opacity: nextOpacity,
+      tilesets: this._state.tilesets.map((tileset) =>
+        tileset.id === id ? { ...tileset, opacity: nextOpacity } : tileset,
+      ),
+    };
+    if (render) {
+      this._renderTilesetList();
+    }
+    this._emit('opacitychange');
     this._emit('statechange');
   }
 
@@ -506,6 +537,21 @@ export class ThreeDTilesControl implements IControl {
       visible.setAttribute('aria-label', `Toggle tileset ${index + 1}`);
       visible.addEventListener('change', () => this.setVisible(visible.checked, tileset.id));
 
+      const opacity = document.createElement('input');
+      opacity.className = 'three-d-tiles-opacity';
+      opacity.type = 'range';
+      opacity.min = '0';
+      opacity.max = '1';
+      opacity.step = '0.05';
+      opacity.value = String(tileset.opacity);
+      opacity.setAttribute('aria-label', `Opacity for tileset ${index + 1}`);
+      opacity.addEventListener('input', () => {
+        this.setOpacity(Number(opacity.value), tileset.id, false);
+      });
+      opacity.addEventListener('change', () => {
+        this.setOpacity(Number(opacity.value), tileset.id);
+      });
+
       const flyTo = this._createSmallButton('Fly');
       flyTo.disabled = tileset.status !== 'loaded';
       flyTo.addEventListener('click', () => this.flyToTileset(tileset.id));
@@ -514,6 +560,7 @@ export class ThreeDTilesControl implements IControl {
       remove.addEventListener('click', () => this.removeTileset(tileset.id));
 
       actions.appendChild(visible);
+      actions.appendChild(opacity);
       actions.appendChild(flyTo);
       actions.appendChild(remove);
       item.appendChild(meta);
@@ -531,18 +578,20 @@ export class ThreeDTilesControl implements IControl {
   }
 
   private _setupEventListeners(): void {
-    this._clickOutsideHandler = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (
-        this._container &&
-        this._panel &&
-        !this._container.contains(target) &&
-        !this._panel.contains(target)
-      ) {
-        this.collapse();
-      }
-    };
-    document.addEventListener('click', this._clickOutsideHandler);
+    if (this._options.collapseOnClickOutside) {
+      this._clickOutsideHandler = (e: MouseEvent) => {
+        const target = e.target as Node;
+        if (
+          this._container &&
+          this._panel &&
+          !this._container.contains(target) &&
+          !this._panel.contains(target)
+        ) {
+          this.collapse();
+        }
+      };
+      document.addEventListener('click', this._clickOutsideHandler);
+    }
 
     this._resizeHandler = () => {
       if (!this._state.collapsed) this._updatePanelPosition();
@@ -707,6 +756,7 @@ export class ThreeDTilesControl implements IControl {
       ...this._state,
       tilesetUrl: activeTileset.tilesetUrl,
       altitudeOffset: activeTileset.altitudeOffset,
+      opacity: activeTileset.opacity,
       visible: activeTileset.visible,
       status: activeTileset.status,
       error: activeTileset.error,

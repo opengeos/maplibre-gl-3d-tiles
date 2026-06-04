@@ -128,6 +128,18 @@
   background: #fff;
 }
 
+.three-d-tiles-input[type='number'] {
+  min-height: 36px;
+  padding-right: 4px;
+}
+
+.three-d-tiles-input[type='number']::-webkit-inner-spin-button,
+.three-d-tiles-input[type='number']::-webkit-outer-spin-button {
+  min-height: 30px;
+  opacity: 1;
+  width: 22px;
+}
+
 .three-d-tiles-input:focus {
   border-color: #2563eb;
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
@@ -263,10 +275,15 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 96px;
 }
 
 .three-d-tiles-list-actions input {
   margin: 0;
+}
+
+.three-d-tiles-opacity {
+  width: 58px;
 }
 
 .three-d-tiles-small-button {

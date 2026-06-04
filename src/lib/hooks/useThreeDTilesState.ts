@@ -8,6 +8,7 @@ const DEFAULT_STATE: ThreeDTilesState = {
   tilesetUrl: DEFAULT_TILESET_URL,
   altitudeOffset: -300,
   flyToOnLoad: true,
+  opacity: 1,
   visible: true,
   status: 'idle',
   tilesets: [],
@@ -35,6 +36,10 @@ export function useThreeDTilesState(initialState?: Partial<ThreeDTilesState>) {
     setState((prev) => ({ ...prev, altitudeOffset }));
   }, []);
 
+  const setOpacity = useCallback((opacity: number) => {
+    setState((prev) => ({ ...prev, opacity }));
+  }, []);
+
   const setVisible = useCallback((visible: boolean) => {
     setState((prev) => ({ ...prev, visible }));
   }, []);
@@ -54,6 +59,7 @@ export function useThreeDTilesState(initialState?: Partial<ThreeDTilesState>) {
     setPanelWidth,
     setTilesetUrl,
     setAltitudeOffset,
+    setOpacity,
     setVisible,
     reset,
     toggle,
