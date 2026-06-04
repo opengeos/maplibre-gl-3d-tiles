@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import * as THREE from 'three';
 import { plugin } from '../src/geolibre';
 import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
-import { ecefToLngLatAlt } from '../src/lib/core/ThreeDTilesLayer';
+import { ecefToLngLatAlt, ThreeDTilesLayer } from '../src/lib/core/ThreeDTilesLayer';
 
 function createMockMap() {
   const mapContainer = document.createElement('div');
@@ -49,6 +50,60 @@ describe('ecefToLngLatAlt', () => {
     expect(coord.lng).toBeCloseTo(90, 6);
     expect(coord.lat).toBeCloseTo(0, 6);
     expect(coord.alt).toBeCloseTo(0, 3);
+  });
+});
+
+describe('ThreeDTilesLayer', () => {
+  it('retries metadata extraction until tileset bounds are available', () => {
+    vi.useFakeTimers();
+
+    const onLoad = vi.fn();
+    const group = new THREE.Object3D();
+    let attempts = 0;
+    const tiles = {
+      group,
+      getBoundingSphere: vi.fn((sphere: THREE.Sphere) => {
+        attempts += 1;
+        if (attempts === 1) return false;
+        sphere.center.set(6378137, 0, 0);
+        sphere.radius = 100;
+        return true;
+      }),
+      removeEventListener: vi.fn(),
+    };
+    const layer = new ThreeDTilesLayer({
+      id: 'test-3d-tiles',
+      tilesetUrl: 'https://example.com/tileset.json',
+      altitudeOffset: 0,
+      opacity: 1,
+      visible: true,
+      onLoad,
+    } as never);
+    const testLayer = layer as unknown as {
+      _tiles: typeof tiles;
+      _loadTilesetHandler: () => void;
+      _handleTilesetLoaded: () => void;
+    };
+
+    const loadHandler = vi.fn();
+    testLayer._tiles = tiles;
+    testLayer._loadTilesetHandler = loadHandler;
+
+    testLayer._handleTilesetLoaded();
+    expect(onLoad).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(20);
+
+    expect(tiles.removeEventListener).toHaveBeenCalledWith('load-tileset', loadHandler);
+    expect(onLoad).toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [expect.closeTo(0), expect.closeTo(0)],
+        altitude: expect.closeTo(0),
+        radius: 100,
+      }),
+    );
+
+    vi.useRealTimers();
   });
 });
 

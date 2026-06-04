@@ -11,6 +11,23 @@ import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import type { LoadedTilesetMetadata, ThreeDTilesDecoderOptions } from './types';
 
+const MAX_METADATA_RETRIES = 120;
+
+function requestMetadataFrame(callback: FrameRequestCallback): number {
+  if (typeof globalThis.requestAnimationFrame === 'function') {
+    return globalThis.requestAnimationFrame(callback);
+  }
+  return globalThis.setTimeout(() => callback(Date.now()), 16) as unknown as number;
+}
+
+function cancelMetadataFrame(handle: number): void {
+  if (typeof globalThis.cancelAnimationFrame === 'function') {
+    globalThis.cancelAnimationFrame(handle);
+    return;
+  }
+  globalThis.clearTimeout(handle);
+}
+
 export interface ThreeDTilesLayerOptions extends ThreeDTilesDecoderOptions {
   id: string;
   tilesetUrl: string;
@@ -68,6 +85,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _visible: boolean;
   private _loadTilesetHandler?: () => void;
   private _loadErrorHandler?: (event: { error: Error }) => void;
+  private _metadataRetryFrame: number | null = null;
+  private _metadataRetryCount = 0;
 
   constructor(options: ThreeDTilesLayerOptions) {
     this.id = options.id;
@@ -134,6 +153,9 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   }
 
   onRemove(): void {
+    if (this._metadataRetryFrame !== null) {
+      cancelMetadataFrame(this._metadataRetryFrame);
+    }
     if (this._tiles && this._loadTilesetHandler) {
       this._tiles.removeEventListener('load-tileset', this._loadTilesetHandler);
     }
@@ -154,6 +176,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._localTransform = undefined;
     this._loadTilesetHandler = undefined;
     this._loadErrorHandler = undefined;
+    this._metadataRetryFrame = null;
+    this._metadataRetryCount = 0;
   }
 
   setVisible(visible: boolean): void {
@@ -216,14 +240,23 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   }
 
   private _handleTilesetLoaded(): void {
-    if (!this._tiles) return;
+    if (!this._tiles || this._metadata) return;
+
+    const sphere = new THREE.Sphere();
+    if (!this._tiles.getBoundingSphere(sphere)) {
+      this._retryTilesetMetadata();
+      return;
+    }
+
+    if (this._metadataRetryFrame !== null) {
+      cancelMetadataFrame(this._metadataRetryFrame);
+      this._metadataRetryFrame = null;
+    }
+    this._metadataRetryCount = 0;
 
     if (this._loadTilesetHandler) {
       this._tiles.removeEventListener('load-tileset', this._loadTilesetHandler);
     }
-
-    const sphere = new THREE.Sphere();
-    if (!this._tiles.getBoundingSphere(sphere)) return;
 
     const center = sphere.center.clone();
     const rootTransform = this._tiles.root?.transform ?? [
@@ -260,6 +293,21 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       radius: sphere.radius,
     };
     this._options.onLoad?.(this._metadata);
+  }
+
+  private _retryTilesetMetadata(): void {
+    if (this._metadataRetryFrame !== null) return;
+
+    if (this._metadataRetryCount >= MAX_METADATA_RETRIES) {
+      this._options.onError?.(new Error('Unable to read 3D Tiles bounds.'));
+      return;
+    }
+
+    this._metadataRetryCount += 1;
+    this._metadataRetryFrame = requestMetadataFrame(() => {
+      this._metadataRetryFrame = null;
+      this._handleTilesetLoaded();
+    });
   }
 
   private _updateLocalTransform(
