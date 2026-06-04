@@ -39,6 +39,7 @@ function createControl(): ThreeDTilesControl {
       ? { altitudeOffset: pendingState.altitudeOffset }
       : {}),
     ...(pendingState?.flyToOnLoad !== undefined ? { flyToOnLoad: pendingState.flyToOnLoad } : {}),
+    ...(pendingState?.opacity !== undefined ? { opacity: pendingState.opacity } : {}),
     ...(pendingState?.visible !== undefined ? { visible: pendingState.visible } : {}),
   };
   const nextControl = new ThreeDTilesControl(options);
@@ -59,6 +60,7 @@ function isThreeDTilesState(value: unknown): value is Partial<ThreeDTilesState> 
   if ('tilesetUrl' in candidate && typeof candidate.tilesetUrl !== 'string') return false;
   if ('altitudeOffset' in candidate && typeof candidate.altitudeOffset !== 'number') return false;
   if ('flyToOnLoad' in candidate && typeof candidate.flyToOnLoad !== 'boolean') return false;
+  if ('opacity' in candidate && typeof candidate.opacity !== 'number') return false;
   if ('visible' in candidate && typeof candidate.visible !== 'boolean') return false;
   if ('tilesets' in candidate && !Array.isArray(candidate.tilesets)) return false;
   if ('activeTilesetId' in candidate && typeof candidate.activeTilesetId !== 'string') {

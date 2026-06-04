@@ -15,6 +15,7 @@ export interface ThreeDTilesLayerOptions extends ThreeDTilesDecoderOptions {
   id: string;
   tilesetUrl: string;
   altitudeOffset: number;
+  opacity: number;
   visible: boolean;
   onLoad?: (metadata: LoadedTilesetMetadata) => void;
   onError?: (error: Error) => void;
@@ -62,6 +63,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _tiles?: TilesRenderer;
   private _localTransform?: THREE.Matrix4;
   private _metadata?: LoadedTilesetMetadata;
+  private _opacity: number;
+  private _opacityDirty = true;
   private _visible: boolean;
   private _loadTilesetHandler?: () => void;
   private _loadErrorHandler?: (event: { error: Error }) => void;
@@ -69,6 +72,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   constructor(options: ThreeDTilesLayerOptions) {
     this.id = options.id;
     this._options = options;
+    this._opacity = options.opacity;
     this._visible = options.visible;
   }
 
@@ -123,6 +127,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._tilesCamera.matrixWorld.copy(viewMatrix).invert();
 
     this._renderer.resetState();
+    this._applyOpacity();
     this._renderer.render(this._scene, this._camera);
     this._tiles.update();
     this._map.triggerRepaint();
@@ -156,6 +161,13 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     if (this._tiles) {
       this._getTilesGroup().visible = visible;
     }
+    this._map?.triggerRepaint();
+  }
+
+  setOpacity(opacity: number): void {
+    this._opacity = Math.min(1, Math.max(0, opacity));
+    this._opacityDirty = true;
+    this._applyOpacity();
     this._map?.triggerRepaint();
   }
 
@@ -200,6 +212,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._tiles.addEventListener('load-error', this._loadErrorHandler);
 
     this._updateLocalTransform([0, 0, 0]);
+    this._applyOpacity();
   }
 
   private _handleTilesetLoaded(): void {
@@ -281,6 +294,21 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       .multiply(rotationX)
       .multiply(rotationY)
       .multiply(rotationZ);
+  }
+
+  private _applyOpacity(): void {
+    if (!this._scene || (!this._opacityDirty && this._opacity >= 1)) return;
+
+    this._scene.traverse((object) => {
+      const material = (object as { material?: THREE.Material | THREE.Material[] }).material;
+      const materials = Array.isArray(material) ? material : material ? [material] : [];
+      for (const item of materials) {
+        item.opacity = this._opacity;
+        item.transparent = this._opacity < 1;
+        item.needsUpdate = true;
+      }
+    });
+    this._opacityDirty = this._opacity < 1;
   }
 
   private _getTilesGroup(): THREE.Object3D {
