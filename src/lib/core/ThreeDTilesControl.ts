@@ -16,7 +16,10 @@ const DEFAULT_TILESET_URL = 'https://pelican-public.s3.amazonaws.com/3dtiles/agi
 const DEFAULT_DRACO_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/draco/`;
 const DEFAULT_KTX2_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/basis/`;
 
-const DEFAULT_OPTIONS: Required<ThreeDTilesControlOptions> = {
+type ResolvedThreeDTilesControlOptions = Required<Omit<ThreeDTilesControlOptions, 'beforeId'>> &
+  Pick<ThreeDTilesControlOptions, 'beforeId'>;
+
+const DEFAULT_OPTIONS: ResolvedThreeDTilesControlOptions = {
   collapsed: true,
   position: 'top-right',
   title: '3D Tiles',
@@ -25,6 +28,8 @@ const DEFAULT_OPTIONS: Required<ThreeDTilesControlOptions> = {
   collapseOnClickOutside: true,
   layerId: 'maplibre-gl-3d-tiles',
   tilesetUrl: DEFAULT_TILESET_URL,
+  layerName: '3D Tiles',
+  beforeId: undefined,
   altitudeOffset: -300,
   flyToOnLoad: true,
   opacity: 1,
@@ -46,7 +51,9 @@ export class ThreeDTilesControl implements IControl {
   private _container?: HTMLElement;
   private _panel?: HTMLElement;
   private _content?: HTMLElement;
+  private _layerNameInput?: HTMLInputElement;
   private _urlInput?: HTMLInputElement;
+  private _beforeIdInput?: HTMLInputElement;
   private _altitudeInput?: HTMLInputElement;
   private _flyToCheckbox?: HTMLInputElement;
   private _visibleCheckbox?: HTMLInputElement;
@@ -54,7 +61,7 @@ export class ThreeDTilesControl implements IControl {
   private _tilesetList?: HTMLElement;
   private _loadButton?: HTMLButtonElement;
   private _removeAllButton?: HTMLButtonElement;
-  private _options: Required<ThreeDTilesControlOptions>;
+  private _options: ResolvedThreeDTilesControlOptions;
   private _state: ThreeDTilesState;
   private _layers = new globalThis.Map<string, ThreeDTilesLayer>();
   private _eventHandlers: EventHandlersMap = new globalThis.Map();
@@ -69,6 +76,8 @@ export class ThreeDTilesControl implements IControl {
       collapsed: this._options.collapsed,
       panelWidth: this._options.panelWidth,
       tilesetUrl: this._options.tilesetUrl,
+      layerName: this._options.layerName,
+      beforeId: this._options.beforeId,
       altitudeOffset: this._options.altitudeOffset,
       flyToOnLoad: this._options.flyToOnLoad,
       opacity: this._options.opacity,
@@ -156,11 +165,15 @@ export class ThreeDTilesControl implements IControl {
     const flyToOnLoad = options?.flyToOnLoad ?? Boolean(this._flyToCheckbox?.checked);
     const opacity = options?.opacity ?? this._state.opacity;
     const visible = options?.visible ?? Boolean(this._visibleCheckbox?.checked);
+    const layerName = options?.layerName ?? this._getLayerName();
+    const beforeId = options?.beforeId ?? this._getBeforeId();
     const id = this._createTilesetId();
     const layerId = this._createLayerId(id);
     const item: ThreeDTilesItemState = {
       id,
       layerId,
+      layerName,
+      beforeId,
       tilesetUrl: url,
       altitudeOffset,
       opacity,
@@ -171,6 +184,8 @@ export class ThreeDTilesControl implements IControl {
     this._state = {
       ...this._state,
       tilesetUrl: url,
+      layerName,
+      beforeId,
       altitudeOffset,
       flyToOnLoad,
       opacity,
@@ -203,7 +218,7 @@ export class ThreeDTilesControl implements IControl {
 
     await this._waitForStyle();
     if (!this._map || !this._layers.has(id)) return undefined;
-    this._map.addLayer(layer);
+    this._map.addLayer(layer, beforeId);
     return id;
   }
 
@@ -231,6 +246,8 @@ export class ThreeDTilesControl implements IControl {
       altitude: activeTileset?.altitude,
       visible: activeTileset?.visible ?? this._state.visible,
       tilesetUrl: activeTileset?.tilesetUrl ?? this._state.tilesetUrl,
+      layerName: activeTileset?.layerName ?? this._state.layerName,
+      beforeId: activeTileset?.beforeId,
       altitudeOffset: activeTileset?.altitudeOffset ?? this._state.altitudeOffset,
       opacity: activeTileset?.opacity ?? this._state.opacity,
       activeTilesetId: activeTileset?.id,
@@ -412,7 +429,9 @@ export class ThreeDTilesControl implements IControl {
       void this.loadTileset();
     });
 
+    this._layerNameInput = this._createInput('Layer name', 'text', this._state.layerName);
     this._urlInput = this._createInput('Tileset URL', 'url', this._state.tilesetUrl);
+    this._beforeIdInput = this._createInput('Before layer ID', 'text', this._state.beforeId ?? '');
     this._altitudeInput = this._createInput(
       'Altitude offset',
       'number',
@@ -439,6 +458,8 @@ export class ThreeDTilesControl implements IControl {
     this._tilesetList.className = 'three-d-tiles-list';
 
     form.appendChild(this._wrapField('Tileset URL', this._urlInput));
+    form.appendChild(this._wrapField('Layer name', this._layerNameInput));
+    form.appendChild(this._wrapField('Before layer ID', this._beforeIdInput));
     form.appendChild(this._wrapField('Altitude offset', this._altitudeInput));
     form.appendChild(this._flyToCheckbox.parentElement!);
     form.appendChild(this._visibleCheckbox.parentElement!);
@@ -512,7 +533,7 @@ export class ThreeDTilesControl implements IControl {
       const title = document.createElement('button');
       title.className = 'three-d-tiles-list-title';
       title.type = 'button';
-      title.textContent = `Tileset ${index + 1}`;
+      title.textContent = tileset.layerName || `Tileset ${index + 1}`;
       title.addEventListener('click', () => this._setActiveTileset(tileset.id));
 
       const url = document.createElement('span');
@@ -522,7 +543,7 @@ export class ThreeDTilesControl implements IControl {
       const status = document.createElement('span');
       status.className = 'three-d-tiles-list-status';
       status.dataset.status = tileset.status;
-      status.textContent = tileset.error ?? tileset.status;
+      status.textContent = tileset.error ?? this._formatTilesetStatus(tileset);
 
       meta.appendChild(title);
       meta.appendChild(url);
@@ -661,6 +682,16 @@ export class ThreeDTilesControl implements IControl {
     return Number.isFinite(value) ? value : this._state.altitudeOffset;
   }
 
+  private _getLayerName(): string {
+    const value = this._layerNameInput?.value.trim() || this._state.layerName;
+    return value || '3D Tiles';
+  }
+
+  private _getBeforeId(): string | undefined {
+    const value = this._beforeIdInput?.value.trim() || this._state.beforeId;
+    return value || undefined;
+  }
+
   private _handleTilesetLoaded(id: string, metadata: LoadedTilesetMetadata): void {
     if (!this._layers.has(id)) return;
 
@@ -711,6 +742,8 @@ export class ThreeDTilesControl implements IControl {
 
   private _syncFormFromState(): void {
     if (this._urlInput) this._urlInput.value = this._state.tilesetUrl;
+    if (this._layerNameInput) this._layerNameInput.value = this._state.layerName;
+    if (this._beforeIdInput) this._beforeIdInput.value = this._state.beforeId ?? '';
     if (this._altitudeInput) this._altitudeInput.value = String(this._state.altitudeOffset);
     if (this._flyToCheckbox) this._flyToCheckbox.checked = this._state.flyToOnLoad;
     if (this._visibleCheckbox) this._visibleCheckbox.checked = this._state.visible;
@@ -755,6 +788,8 @@ export class ThreeDTilesControl implements IControl {
     this._state = {
       ...this._state,
       tilesetUrl: activeTileset.tilesetUrl,
+      layerName: activeTileset.layerName,
+      beforeId: activeTileset.beforeId,
       altitudeOffset: activeTileset.altitudeOffset,
       opacity: activeTileset.opacity,
       visible: activeTileset.visible,
@@ -776,6 +811,13 @@ export class ThreeDTilesControl implements IControl {
 
   private _getTileset(id: string): ThreeDTilesItemState | undefined {
     return this._state.tilesets.find((tileset) => tileset.id === id);
+  }
+
+  private _formatTilesetStatus(tileset: ThreeDTilesItemState): string {
+    if (tileset.beforeId) {
+      return `${tileset.status} before ${tileset.beforeId}`;
+    }
+    return tileset.status;
   }
 
   private _createTilesetId(): string {

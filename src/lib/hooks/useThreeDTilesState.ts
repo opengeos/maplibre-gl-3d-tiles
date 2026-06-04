@@ -6,6 +6,7 @@ const DEFAULT_STATE: ThreeDTilesState = {
   collapsed: true,
   panelWidth: 360,
   tilesetUrl: DEFAULT_TILESET_URL,
+  layerName: '3D Tiles',
   altitudeOffset: -300,
   flyToOnLoad: true,
   opacity: 1,
@@ -30,6 +31,14 @@ export function useThreeDTilesState(initialState?: Partial<ThreeDTilesState>) {
 
   const setTilesetUrl = useCallback((tilesetUrl: string) => {
     setState((prev) => ({ ...prev, tilesetUrl }));
+  }, []);
+
+  const setLayerName = useCallback((layerName: string) => {
+    setState((prev) => ({ ...prev, layerName }));
+  }, []);
+
+  const setBeforeId = useCallback((beforeId?: string) => {
+    setState((prev) => ({ ...prev, beforeId }));
   }, []);
 
   const setAltitudeOffset = useCallback((altitudeOffset: number) => {
@@ -58,6 +67,8 @@ export function useThreeDTilesState(initialState?: Partial<ThreeDTilesState>) {
     setCollapsed,
     setPanelWidth,
     setTilesetUrl,
+    setLayerName,
+    setBeforeId,
     setAltitudeOffset,
     setOpacity,
     setVisible,

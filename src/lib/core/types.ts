@@ -6,6 +6,8 @@ export type ThreeDTilesStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
 export interface ThreeDTilesLoadOptions {
   tilesetUrl: string;
+  layerName: string;
+  beforeId?: string;
   altitudeOffset: number;
   flyToOnLoad: boolean;
   opacity: number;
@@ -30,6 +32,8 @@ export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOption
 export interface ThreeDTilesItemState {
   id: string;
   layerId: string;
+  layerName: string;
+  beforeId?: string;
   tilesetUrl: string;
   altitudeOffset: number;
   opacity: number;
@@ -44,6 +48,8 @@ export interface ThreeDTilesState {
   collapsed: boolean;
   panelWidth: number;
   tilesetUrl: string;
+  layerName: string;
+  beforeId?: string;
   altitudeOffset: number;
   flyToOnLoad: boolean;
   opacity: number;
