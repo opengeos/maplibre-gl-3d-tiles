@@ -34,6 +34,11 @@ export interface ThreeDTilesLayerOptions extends ThreeDTilesDecoderOptions {
   altitudeOffset: number;
   opacity: number;
   visible: boolean;
+  /**
+   * Custom HTTP request headers applied to the tileset's fetch options, so the
+   * tileset JSON and every tile request carry them (for authenticated sources).
+   */
+  requestHeaders?: Record<string, string>;
   onLoad?: (metadata: LoadedTilesetMetadata) => void;
   onError?: (error: Error) => void;
 }
@@ -222,6 +227,15 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     gltfLoader.setKTX2Loader(ktx2Loader);
 
     this._tiles = new TilesRenderer(this._options.tilesetUrl);
+    const requestHeaders = this._options.requestHeaders;
+    if (requestHeaders && Object.keys(requestHeaders).length > 0) {
+      // TilesRenderer forwards fetchOptions to every tileset/tile fetch, so
+      // setting headers here authenticates the whole tileset request tree.
+      this._tiles.fetchOptions = {
+        ...this._tiles.fetchOptions,
+        headers: { ...this._tiles.fetchOptions?.headers, ...requestHeaders },
+      };
+    }
     const group = this._getTilesGroup();
     group.name = this.id;
     group.visible = this._visible;

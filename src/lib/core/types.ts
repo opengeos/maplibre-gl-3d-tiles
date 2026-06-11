@@ -12,6 +12,11 @@ export interface ThreeDTilesLoadOptions {
   flyToOnLoad: boolean;
   opacity: number;
   visible: boolean;
+  /**
+   * Custom HTTP request headers sent with every tileset and tile fetch, for
+   * authenticated sources (e.g. `{ Authorization: 'ApiKey <key>' }`).
+   */
+  requestHeaders?: Record<string, string>;
 }
 
 export interface ThreeDTilesDecoderOptions {
@@ -42,6 +47,7 @@ export interface ThreeDTilesItemState {
   error?: string;
   center?: [number, number];
   altitude?: number;
+  requestHeaders?: Record<string, string>;
 }
 
 export interface ThreeDTilesState {
@@ -58,6 +64,7 @@ export interface ThreeDTilesState {
   error?: string;
   center?: [number, number];
   altitude?: number;
+  requestHeaders?: Record<string, string>;
   activeTilesetId?: string;
   tilesets: ThreeDTilesItemState[];
 }

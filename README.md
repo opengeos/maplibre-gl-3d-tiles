@@ -116,10 +116,13 @@ Constructor options include:
 | `altitudeOffset` | `number` | `-300` |
 | `flyToOnLoad` | `boolean` | `true` |
 | `visible` | `boolean` | `true` |
+| `requestHeaders` | `Record<string, string>` | `undefined` |
 | `layerId` | `string` | `maplibre-gl-3d-tiles` |
 | `collapsed` | `boolean` | `true` |
 | `panelWidth` | `number` | `360` |
 | `position` | MapLibre control position | `top-right` |
+
+For authenticated tilesets, pass `requestHeaders` (e.g. `{ Authorization: 'ApiKey <key>' }`). The headers are applied to the tileset's fetch options, so the tileset JSON and every tile request carry them. In the control panel, headers can also be entered in the "Request headers" field, one `Name: Value` pair per line.
 
 Main methods:
 

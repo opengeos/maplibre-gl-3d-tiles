@@ -145,6 +145,18 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
+.three-d-tiles-textarea {
+  min-height: 48px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.three-d-tiles-field-hint {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .three-d-tiles-checkbox {
   display: flex;
   align-items: center;
