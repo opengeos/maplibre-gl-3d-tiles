@@ -5,4 +5,6 @@ export {
   debounce,
   throttle,
   classNames,
+  parseRequestHeaders,
+  serializeRequestHeaders,
 } from './helpers';

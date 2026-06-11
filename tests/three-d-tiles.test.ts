@@ -120,16 +120,21 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().collapsed).toBe(false);
   });
 
-  it('orders URL, layer name, and before layer ID fields first', () => {
+  it('orders URL, layer name, request headers, and before layer ID fields first', () => {
     const { map, controlsContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });
 
     controlsContainer.appendChild(control.onAdd(map as never));
-    const labels = [...document.querySelectorAll('.three-d-tiles-field span')].map(
-      (element) => element.textContent,
-    );
+    const labels = [
+      ...document.querySelectorAll('.three-d-tiles-field > span:first-child'),
+    ].map((element) => element.textContent);
 
-    expect(labels.slice(0, 3)).toEqual(['Tileset URL', 'Layer name', 'Before layer ID']);
+    expect(labels.slice(0, 4)).toEqual([
+      'Tileset URL',
+      'Layer name',
+      'Request headers',
+      'Before layer ID',
+    ]);
   });
 
   it('updates visibility state and emits visibility events', () => {
@@ -238,6 +243,68 @@ describe('ThreeDTilesControl', () => {
         beforeId: 'symbol-labels',
       }),
     );
+  });
+
+  it('parses request headers from the form field and stores them on the tileset', async () => {
+    const { map, mapContainer, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({
+      layerId: 'test-3d-tiles',
+      tilesetUrl: 'https://example.com/tileset.json',
+    });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    const headersField = mapContainer.querySelector(
+      '.three-d-tiles-textarea',
+    ) as HTMLTextAreaElement;
+    headersField.value = 'Authorization: ApiKey secret\nX-Env: prod';
+    await control.loadTileset();
+
+    expect(control.getState().tilesets[0].requestHeaders).toEqual({
+      Authorization: 'ApiKey secret',
+      'X-Env': 'prod',
+    });
+    expect(control.getState().requestHeaders).toEqual({
+      Authorization: 'ApiKey secret',
+      'X-Env': 'prod',
+    });
+  });
+
+  it('accepts request headers passed directly to loadTileset', async () => {
+    const { map, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ layerId: 'test-3d-tiles' });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    await control.loadTileset('https://example.com/secure.json', {
+      requestHeaders: { Authorization: 'Bearer token' },
+    });
+
+    expect(control.getState().tilesets[0].requestHeaders).toEqual({
+      Authorization: 'Bearer token',
+    });
+  });
+
+  it('restores saved headers into the form when a tileset is initialised', () => {
+    const { map, mapContainer, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({
+      requestHeaders: { Authorization: 'ApiKey persisted' },
+    });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    const headersField = mapContainer.querySelector(
+      '.three-d-tiles-textarea',
+    ) as HTMLTextAreaElement;
+
+    expect(headersField.value).toBe('Authorization: ApiKey persisted');
+  });
+
+  it('omits request headers from the tileset when the field is empty', async () => {
+    const { map, controlsContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ layerId: 'test-3d-tiles' });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+    await control.loadTileset();
+
+    expect(control.getState().tilesets[0].requestHeaders).toBeUndefined();
   });
 
   it('adds multiple custom layers without replacing existing tilesets', async () => {

@@ -1,5 +1,6 @@
 import type { IControl, Map as MapLibreMap } from 'maplibre-gl';
 import { ThreeDTilesLayer } from './ThreeDTilesLayer';
+import { parseRequestHeaders, serializeRequestHeaders } from '../utils/helpers';
 import type {
   LoadedTilesetMetadata,
   ThreeDTilesControlEvent,
@@ -16,8 +17,10 @@ const DEFAULT_TILESET_URL = 'https://pelican-public.s3.amazonaws.com/3dtiles/agi
 const DEFAULT_DRACO_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/draco/`;
 const DEFAULT_KTX2_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/basis/`;
 
-type ResolvedThreeDTilesControlOptions = Required<Omit<ThreeDTilesControlOptions, 'beforeId'>> &
-  Pick<ThreeDTilesControlOptions, 'beforeId'>;
+type ResolvedThreeDTilesControlOptions = Required<
+  Omit<ThreeDTilesControlOptions, 'beforeId' | 'requestHeaders'>
+> &
+  Pick<ThreeDTilesControlOptions, 'beforeId' | 'requestHeaders'>;
 
 const DEFAULT_OPTIONS: ResolvedThreeDTilesControlOptions = {
   collapsed: true,
@@ -53,6 +56,7 @@ export class ThreeDTilesControl implements IControl {
   private _content?: HTMLElement;
   private _layerNameInput?: HTMLInputElement;
   private _urlInput?: HTMLInputElement;
+  private _headersInput?: HTMLTextAreaElement;
   private _beforeIdInput?: HTMLInputElement;
   private _altitudeInput?: HTMLInputElement;
   private _flyToCheckbox?: HTMLInputElement;
@@ -82,6 +86,7 @@ export class ThreeDTilesControl implements IControl {
       flyToOnLoad: this._options.flyToOnLoad,
       opacity: this._options.opacity,
       visible: this._options.visible,
+      requestHeaders: this._options.requestHeaders,
       status: 'idle',
       tilesets: [],
     };
@@ -167,6 +172,7 @@ export class ThreeDTilesControl implements IControl {
     const visible = options?.visible ?? Boolean(this._visibleCheckbox?.checked);
     const layerName = options?.layerName ?? this._getLayerName();
     const beforeId = options?.beforeId ?? this._getBeforeId();
+    const requestHeaders = options?.requestHeaders ?? this._getRequestHeaders();
     const id = this._createTilesetId();
     const layerId = this._createLayerId(id);
     const item: ThreeDTilesItemState = {
@@ -178,6 +184,7 @@ export class ThreeDTilesControl implements IControl {
       altitudeOffset,
       opacity,
       visible,
+      requestHeaders,
       status: 'loading',
     };
 
@@ -190,6 +197,7 @@ export class ThreeDTilesControl implements IControl {
       flyToOnLoad,
       opacity,
       visible,
+      requestHeaders,
       status: 'loading',
       error: undefined,
       center: undefined,
@@ -209,6 +217,7 @@ export class ThreeDTilesControl implements IControl {
       altitudeOffset,
       opacity,
       visible,
+      requestHeaders,
       dracoDecoderPath: this._options.dracoDecoderPath,
       ktx2TranscoderPath: this._options.ktx2TranscoderPath,
       onLoad: (metadata) => this._handleTilesetLoaded(id, metadata),
@@ -250,6 +259,7 @@ export class ThreeDTilesControl implements IControl {
       beforeId: activeTileset?.beforeId,
       altitudeOffset: activeTileset?.altitudeOffset ?? this._state.altitudeOffset,
       opacity: activeTileset?.opacity ?? this._state.opacity,
+      requestHeaders: activeTileset?.requestHeaders,
       activeTilesetId: activeTileset?.id,
       tilesets,
     };
@@ -431,6 +441,11 @@ export class ThreeDTilesControl implements IControl {
 
     this._layerNameInput = this._createInput('Layer name', 'text', this._state.layerName);
     this._urlInput = this._createInput('Tileset URL', 'url', this._state.tilesetUrl);
+    this._headersInput = this._createTextarea(
+      'Request headers',
+      serializeRequestHeaders(this._state.requestHeaders),
+      'Authorization: ApiKey <key>',
+    );
     this._beforeIdInput = this._createInput('Before layer ID', 'text', this._state.beforeId ?? '');
     this._altitudeInput = this._createInput(
       'Altitude offset',
@@ -459,6 +474,11 @@ export class ThreeDTilesControl implements IControl {
 
     form.appendChild(this._wrapField('Tileset URL', this._urlInput));
     form.appendChild(this._wrapField('Layer name', this._layerNameInput));
+    form.appendChild(
+      this._wrapField('Request headers', this._headersInput, {
+        hint: 'One per line as Name: Value, for authenticated tilesets. Saved with the layer.',
+      }),
+    );
     form.appendChild(this._wrapField('Before layer ID', this._beforeIdInput));
     form.appendChild(this._wrapField('Altitude offset', this._altitudeInput));
     form.appendChild(this._flyToCheckbox.parentElement!);
@@ -481,6 +501,21 @@ export class ThreeDTilesControl implements IControl {
     return input;
   }
 
+  private _createTextarea(
+    label: string,
+    value: string,
+    placeholder = '',
+  ): HTMLTextAreaElement {
+    const textarea = document.createElement('textarea');
+    textarea.className = 'three-d-tiles-input three-d-tiles-textarea';
+    textarea.value = value;
+    textarea.rows = 2;
+    textarea.placeholder = placeholder;
+    textarea.spellcheck = false;
+    textarea.setAttribute('aria-label', label);
+    return textarea;
+  }
+
   private _createCheckbox(label: string, checked: boolean): HTMLInputElement {
     const wrapper = document.createElement('label');
     wrapper.className = 'three-d-tiles-checkbox';
@@ -494,13 +529,23 @@ export class ThreeDTilesControl implements IControl {
     return input;
   }
 
-  private _wrapField(labelText: string, input: HTMLInputElement): HTMLElement {
+  private _wrapField(
+    labelText: string,
+    input: HTMLInputElement | HTMLTextAreaElement,
+    options?: { hint?: string },
+  ): HTMLElement {
     const label = document.createElement('label');
     label.className = 'three-d-tiles-field';
     const span = document.createElement('span');
     span.textContent = labelText;
     label.appendChild(span);
     label.appendChild(input);
+    if (options?.hint) {
+      const hint = document.createElement('span');
+      hint.className = 'three-d-tiles-field-hint';
+      hint.textContent = options.hint;
+      label.appendChild(hint);
+    }
     return label;
   }
 
@@ -692,6 +737,12 @@ export class ThreeDTilesControl implements IControl {
     return value || undefined;
   }
 
+  private _getRequestHeaders(): Record<string, string> | undefined {
+    const raw = this._headersInput?.value ?? serializeRequestHeaders(this._state.requestHeaders);
+    const headers = parseRequestHeaders(raw);
+    return Object.keys(headers).length > 0 ? headers : undefined;
+  }
+
   private _handleTilesetLoaded(id: string, metadata: LoadedTilesetMetadata): void {
     if (!this._layers.has(id)) return;
 
@@ -743,6 +794,9 @@ export class ThreeDTilesControl implements IControl {
   private _syncFormFromState(): void {
     if (this._urlInput) this._urlInput.value = this._state.tilesetUrl;
     if (this._layerNameInput) this._layerNameInput.value = this._state.layerName;
+    if (this._headersInput) {
+      this._headersInput.value = serializeRequestHeaders(this._state.requestHeaders);
+    }
     if (this._beforeIdInput) this._beforeIdInput.value = this._state.beforeId ?? '';
     if (this._altitudeInput) this._altitudeInput.value = String(this._state.altitudeOffset);
     if (this._flyToCheckbox) this._flyToCheckbox.checked = this._state.flyToOnLoad;
@@ -793,6 +847,7 @@ export class ThreeDTilesControl implements IControl {
       altitudeOffset: activeTileset.altitudeOffset,
       opacity: activeTileset.opacity,
       visible: activeTileset.visible,
+      requestHeaders: activeTileset.requestHeaders,
       status: activeTileset.status,
       error: activeTileset.error,
       center: activeTileset.center,

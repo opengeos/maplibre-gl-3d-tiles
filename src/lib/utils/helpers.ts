@@ -132,3 +132,44 @@ export function classNames(classes: Record<string, boolean>): string {
     .map(([key]) => key)
     .join(' ');
 }
+
+/**
+ * Parse a block of `Name: Value` lines into a request-headers object. Each
+ * non-empty line is split on its first colon, so header values may themselves
+ * contain colons (e.g. `Authorization: ApiKey a:b`). Lines without a colon, or
+ * with an empty name, are ignored. Later duplicates of a name win.
+ *
+ * @param text - Multi-line text, one `Name: Value` pair per line
+ * @returns An object mapping header names to values (empty if none parsed)
+ *
+ * @example
+ * ```typescript
+ * parseRequestHeaders('Authorization: ApiKey abc\nX-Env: prod');
+ * // returns { Authorization: 'ApiKey abc', 'X-Env': 'prod' }
+ * ```
+ */
+export function parseRequestHeaders(text: string): Record<string, string> {
+  const headers: Record<string, string> = {};
+  for (const line of text.split('\n')) {
+    const separator = line.indexOf(':');
+    if (separator === -1) continue;
+    const name = line.slice(0, separator).trim();
+    if (!name) continue;
+    headers[name] = line.slice(separator + 1).trim();
+  }
+  return headers;
+}
+
+/**
+ * Serialize a request-headers object back into `Name: Value` lines, the inverse
+ * of {@link parseRequestHeaders}, for displaying saved headers in a text field.
+ *
+ * @param headers - Header name/value object (or undefined)
+ * @returns One `Name: Value` line per entry, joined by newlines (empty if none)
+ */
+export function serializeRequestHeaders(headers?: Record<string, string>): string {
+  if (!headers) return '';
+  return Object.entries(headers)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join('\n');
+}

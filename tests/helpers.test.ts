@@ -4,6 +4,8 @@ import {
   formatNumericValue,
   generateId,
   classNames,
+  parseRequestHeaders,
+  serializeRequestHeaders,
 } from '../src/lib/utils/helpers';
 
 describe('clamp', () => {
@@ -86,5 +88,56 @@ describe('classNames', () => {
 
   it('handles all classes active', () => {
     expect(classNames({ a: true, b: true, c: true })).toBe('a b c');
+  });
+});
+
+describe('parseRequestHeaders', () => {
+  it('parses Name: Value lines into an object', () => {
+    expect(parseRequestHeaders('Authorization: ApiKey abc\nX-Env: prod')).toEqual({
+      Authorization: 'ApiKey abc',
+      'X-Env': 'prod',
+    });
+  });
+
+  it('splits only on the first colon so values may contain colons', () => {
+    expect(parseRequestHeaders('Authorization: ApiKey a:b:c')).toEqual({
+      Authorization: 'ApiKey a:b:c',
+    });
+  });
+
+  it('trims names and values and ignores blank or colon-less lines', () => {
+    expect(parseRequestHeaders('  X-Key  :  secret  \n\nno-colon-line')).toEqual({
+      'X-Key': 'secret',
+    });
+  });
+
+  it('ignores lines with an empty header name', () => {
+    expect(parseRequestHeaders(': value')).toEqual({});
+  });
+
+  it('keeps the last value when a name repeats', () => {
+    expect(parseRequestHeaders('A: 1\nA: 2')).toEqual({ A: '2' });
+  });
+
+  it('returns an empty object for empty input', () => {
+    expect(parseRequestHeaders('')).toEqual({});
+  });
+});
+
+describe('serializeRequestHeaders', () => {
+  it('renders one Name: Value line per entry', () => {
+    expect(serializeRequestHeaders({ Authorization: 'ApiKey abc', 'X-Env': 'prod' })).toBe(
+      'Authorization: ApiKey abc\nX-Env: prod',
+    );
+  });
+
+  it('returns an empty string for undefined or empty headers', () => {
+    expect(serializeRequestHeaders(undefined)).toBe('');
+    expect(serializeRequestHeaders({})).toBe('');
+  });
+
+  it('round-trips with parseRequestHeaders', () => {
+    const headers = { Authorization: 'Bearer x', 'X-API-Key': 'k:v' };
+    expect(parseRequestHeaders(serializeRequestHeaders(headers))).toEqual(headers);
   });
 });
