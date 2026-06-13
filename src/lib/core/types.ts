@@ -83,6 +83,7 @@ export type ThreeDTilesControlEvent =
   | 'error'
   | 'remove'
   | 'opacitychange'
+  | 'altitudechange'
   | 'visibilitychange';
 
 export type ThreeDTilesControlEventHandler = (event: {
