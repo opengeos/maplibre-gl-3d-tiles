@@ -85,6 +85,12 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _tiles?: TilesRenderer;
   private _localTransform?: THREE.Matrix4;
   private _metadata?: LoadedTilesetMetadata;
+  /**
+   * Load-time anchor (the tileset bounding-sphere center as lng/lat plus its
+   * unadjusted ellipsoidal altitude). Kept so the altitude offset can be
+   * re-applied live without reloading the tileset.
+   */
+  private _anchor?: { lng: number; lat: number; alt: number };
   private _opacity: number;
   private _opacityDirty = true;
   private _visible: boolean;
@@ -179,6 +185,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._renderer = undefined;
     this._tiles = undefined;
     this._localTransform = undefined;
+    this._anchor = undefined;
     this._loadTilesetHandler = undefined;
     this._loadErrorHandler = undefined;
     this._metadataRetryFrame = null;
@@ -197,6 +204,26 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._opacity = Math.min(1, Math.max(0, opacity));
     this._opacityDirty = true;
     this._applyOpacity();
+    this._map?.triggerRepaint();
+  }
+
+  /**
+   * Re-position the loaded tileset vertically without reloading it. The
+   * placement is otherwise computed once on load, so changing the offset after
+   * the fact previously required a full reload. Before the tileset has loaded
+   * (no anchor yet) the value is stored and applied when `_handleTilesetLoaded`
+   * runs.
+   */
+  setAltitudeOffset(altitudeOffset: number): void {
+    this._options.altitudeOffset = altitudeOffset;
+    if (!this._anchor) return;
+
+    const { lng, lat, alt } = this._anchor;
+    const adjustedAltitude = alt + altitudeOffset;
+    this._updateLocalTransform([lng, lat, adjustedAltitude]);
+    if (this._metadata) {
+      this._metadata = { ...this._metadata, altitude: adjustedAltitude };
+    }
     this._map?.triggerRepaint();
   }
 
@@ -273,24 +300,38 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     }
 
     const center = sphere.center.clone();
-    const rootTransform = this._tiles.root?.transform ?? [
-      1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1,
-    ];
     const { lng, lat, alt } = ecefToLngLatAlt(center.x, center.y, center.z);
+    this._anchor = { lng, lat, alt };
     const adjustedAltitude = alt + this._options.altitudeOffset;
 
     this._updateLocalTransform([lng, lat, adjustedAltitude]);
 
+    // Orient the geometry onto the local tangent plane at the anchor.
+    // 3d-tiles-renderer emits world-space geometry in ECEF, so "up" is the
+    // ellipsoidal normal at the anchor lng/lat, not a fixed axis. We derive the
+    // East/North/Up basis from the anchor location rather than the root tile's
+    // transform: for a Cesium-style tileset the root transform already equals
+    // this ENU basis, while a region-based tileset (e.g. a point cloud with an
+    // RTC center and an identity root transform) ships no usable rotation and
+    // would otherwise be tilted by the site's colatitude.
+    const lngRad = (lng * Math.PI) / 180;
+    const latRad = (lat * Math.PI) / 180;
+    const sinLng = Math.sin(lngRad);
+    const cosLng = Math.cos(lngRad);
+    const sinLat = Math.sin(latRad);
+    const cosLat = Math.cos(latRad);
+    // Rows map an ECEF vector into the MapLibre custom layer's model frame
+    // (X = East, Y = Up, Z = -North).
     const rotationMat3 = new THREE.Matrix3().set(
-      rootTransform[0],
-      rootTransform[1],
-      rootTransform[2],
-      rootTransform[8],
-      rootTransform[9],
-      rootTransform[10],
-      -rootTransform[4],
-      -rootTransform[5],
-      -rootTransform[6],
+      -sinLng,
+      cosLng,
+      0,
+      cosLat * cosLng,
+      cosLat * sinLng,
+      sinLat,
+      sinLat * cosLng,
+      sinLat * sinLng,
+      -cosLat,
     );
     const rotationMat4 = new THREE.Matrix4().setFromMatrix3(rotationMat3);
     const moveToOrigin = new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z);

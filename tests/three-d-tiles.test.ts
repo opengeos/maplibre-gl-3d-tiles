@@ -107,6 +107,83 @@ describe('ThreeDTilesLayer', () => {
   });
 });
 
+function loadLayerWithCenter(
+  center: THREE.Vector3,
+  altitudeOffset = 0,
+): { layer: ThreeDTilesLayer; group: THREE.Object3D; triggerRepaint: () => void } {
+  const group = new THREE.Object3D();
+  const tiles = {
+    group,
+    getBoundingSphere: vi.fn((sphere: THREE.Sphere) => {
+      sphere.center.copy(center);
+      sphere.radius = 100;
+      return true;
+    }),
+    removeEventListener: vi.fn(),
+  };
+  const triggerRepaint = vi.fn();
+  const layer = new ThreeDTilesLayer({
+    id: 'orientation-3d-tiles',
+    tilesetUrl: 'https://example.com/tileset.json',
+    altitudeOffset,
+    opacity: 1,
+    visible: true,
+  } as never);
+  const internals = layer as unknown as {
+    _tiles: typeof tiles;
+    _map: { triggerRepaint: () => void };
+    _handleTilesetLoaded: () => void;
+  };
+  internals._tiles = tiles;
+  internals._map = { triggerRepaint };
+  internals._handleTilesetLoaded();
+  return { layer, group, triggerRepaint };
+}
+
+describe('ThreeDTilesLayer orientation', () => {
+  // The local up direction is the ellipsoidal normal at the tileset anchor, not
+  // a fixed axis. Regression guard: a region/point-cloud tileset with an
+  // identity root transform was previously tilted by the site's colatitude.
+  it('aligns ECEF east/up with the model frame X/Y axes away from the pole', () => {
+    // A point near 45N, 0E so the bug (a pole-aligned axis swap) would tilt it ~45deg.
+    const center = new THREE.Vector3(3194419.145, 0, 4487348.409);
+    const { group } = loadLayerWithCenter(center);
+
+    const { lng, lat } = ecefToLngLatAlt(center.x, center.y, center.z);
+    const lngRad = (lng * Math.PI) / 180;
+    const latRad = (lat * Math.PI) / 180;
+    const up = new THREE.Vector3(
+      Math.cos(latRad) * Math.cos(lngRad),
+      Math.cos(latRad) * Math.sin(lngRad),
+      Math.sin(latRad),
+    );
+    const east = new THREE.Vector3(-Math.sin(lngRad), Math.cos(lngRad), 0);
+
+    const upPoint = center.clone().addScaledVector(up, 100).applyMatrix4(group.matrix);
+    const eastPoint = center.clone().addScaledVector(east, 100).applyMatrix4(group.matrix);
+
+    // 100 m straight up maps to +100 on the model Y (up) axis only.
+    expect(upPoint.x).toBeCloseTo(0, 3);
+    expect(upPoint.y).toBeCloseTo(100, 3);
+    expect(upPoint.z).toBeCloseTo(0, 3);
+    // 100 m east maps to +100 on the model X (east) axis only.
+    expect(eastPoint.x).toBeCloseTo(100, 3);
+    expect(eastPoint.y).toBeCloseTo(0, 3);
+    expect(eastPoint.z).toBeCloseTo(0, 3);
+  });
+
+  it('repositions vertically when the altitude offset changes after load', () => {
+    const center = new THREE.Vector3(6378137, 0, 0);
+    const { layer, triggerRepaint } = loadLayerWithCenter(center, 0);
+    const baseAltitude = layer.getMetadata()?.altitude ?? 0;
+
+    layer.setAltitudeOffset(-250);
+
+    expect(layer.getMetadata()?.altitude).toBeCloseTo(baseAltitude - 250, 3);
+    expect(triggerRepaint).toHaveBeenCalled();
+  });
+});
+
 describe('ThreeDTilesControl', () => {
   it('adds a compact button and floating panel to the map', () => {
     const { map, controlsContainer, mapContainer } = createMockMap();
@@ -194,6 +271,36 @@ describe('ThreeDTilesControl', () => {
     expect(handler).toHaveBeenCalledWith({
       type: 'opacitychange',
       state: expect.objectContaining({ opacity: 0.45 }),
+    });
+  });
+
+  it('updates altitude offset state and emits altitude events', () => {
+    const control = new ThreeDTilesControl();
+    const handler = vi.fn();
+
+    control.setState({
+      activeTilesetId: 'tileset-1',
+      tilesets: [
+        {
+          id: 'tileset-1',
+          layerId: 'test-3d-tiles',
+          layerName: 'Test tileset',
+          tilesetUrl: 'https://example.com/tileset.json',
+          altitudeOffset: 0,
+          opacity: 1,
+          visible: true,
+          status: 'loaded',
+        },
+      ],
+    });
+    control.on('altitudechange', handler);
+    control.setAltitudeOffset(-512);
+
+    expect(control.getState().altitudeOffset).toBe(-512);
+    expect(control.getState().tilesets[0].altitudeOffset).toBe(-512);
+    expect(handler).toHaveBeenCalledWith({
+      type: 'altitudechange',
+      state: expect.objectContaining({ altitudeOffset: -512 }),
     });
   });
 

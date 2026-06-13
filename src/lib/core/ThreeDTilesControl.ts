@@ -313,6 +313,28 @@ export class ThreeDTilesControl implements IControl {
     this._emit('statechange');
   }
 
+  setAltitudeOffset(
+    altitudeOffset: number,
+    id = this._state.activeTilesetId,
+    render = true,
+  ): void {
+    if (!id || !Number.isFinite(altitudeOffset)) return;
+
+    this._layers.get(id)?.setAltitudeOffset(altitudeOffset);
+    this._state = {
+      ...this._state,
+      altitudeOffset,
+      tilesets: this._state.tilesets.map((tileset) =>
+        tileset.id === id ? { ...tileset, altitudeOffset } : tileset,
+      ),
+    };
+    if (render) {
+      this._renderTilesetList();
+    }
+    this._emit('altitudechange');
+    this._emit('statechange');
+  }
+
   flyToTileset(id = this._state.activeTilesetId): void {
     if (!id) return;
     this._layers.get(id)?.flyToTileset();
@@ -453,6 +475,22 @@ export class ThreeDTilesControl implements IControl {
       String(this._state.altitudeOffset),
     );
     this._altitudeInput.step = '1';
+    // The form mirrors the active tileset (see `_syncFromActiveTileset`), so
+    // editing the offset re-positions the loaded tileset live instead of only
+    // taking effect on the next load. With no active tileset the value is just
+    // the default for the next `loadTileset` call.
+    this._altitudeInput.addEventListener('input', () => {
+      const value = Number(this._altitudeInput?.value);
+      if (Number.isFinite(value) && this._state.activeTilesetId) {
+        this.setAltitudeOffset(value, this._state.activeTilesetId, false);
+      }
+    });
+    this._altitudeInput.addEventListener('change', () => {
+      const value = Number(this._altitudeInput?.value);
+      if (Number.isFinite(value) && this._state.activeTilesetId) {
+        this.setAltitudeOffset(value, this._state.activeTilesetId);
+      }
+    });
 
     this._flyToCheckbox = this._createCheckbox('Fly to tileset after load', this._state.flyToOnLoad);
     this._visibleCheckbox = this._createCheckbox('Visible on load', this._state.visible);
