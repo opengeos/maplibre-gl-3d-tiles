@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from 'vitest';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { plugin } from '../src/geolibre';
 import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
-import { ecefToLngLatAlt, ThreeDTilesLayer } from '../src/lib/core/ThreeDTilesLayer';
+import {
+  ecefToLngLatAlt,
+  patchGltfTextureLoaderForBlob,
+  ThreeDTilesLayer,
+} from '../src/lib/core/ThreeDTilesLayer';
 
 function createMockMap() {
   const mapContainer = document.createElement('div');
@@ -501,5 +506,43 @@ describe('GeoLibre plugin', () => {
     );
 
     plugin.deactivate(app);
+  });
+});
+
+describe('patchGltfTextureLoaderForBlob', () => {
+  it('routes blob:/data: textures off the CORS path and keeps http(s) on it', () => {
+    const loader = new GLTFLoader();
+    patchGltfTextureLoaderForBlob(loader);
+
+    // GLTFLoader auto-registers built-in plugins in its constructor, so ours is
+    // the last one registered.
+    const callbacks = (
+      loader as unknown as {
+        pluginCallbacks: Array<(parser: unknown) => { name?: string }>;
+      }
+    ).pluginCallbacks;
+    const register = callbacks[callbacks.length - 1];
+
+    const baseCalls: string[] = [];
+    const base = {
+      manager: new THREE.LoadingManager(),
+      requestHeader: {},
+      setRequestHeader() {},
+      load: (url: string) => {
+        baseCalls.push(url);
+      },
+    };
+
+    // Running the registered plugin rewrites base.load into the dispatcher.
+    const result = register({ textureLoader: base });
+    expect(result.name).toBe('GEOLIBRE_blob_texture_crossorigin');
+
+    base.load('https://example.com/tex.png');
+    base.load('blob:http://tauri.localhost/abc');
+    base.load('data:image/png;base64,AAAA');
+
+    // Only the http(s) texture goes through the original (CORS) loader; the
+    // same-origin object/data URLs are routed to the crossOrigin-free sibling.
+    expect(baseCalls).toEqual(['https://example.com/tex.png']);
   });
 });
