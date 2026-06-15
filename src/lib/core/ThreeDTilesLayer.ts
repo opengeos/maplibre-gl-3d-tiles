@@ -6,12 +6,70 @@ import type {
 import maplibregl from 'maplibre-gl';
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import {
+  GLTFLoader,
+  type GLTFLoaderPlugin,
+  type GLTFParser,
+} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import type { LoadedTilesetMetadata, ThreeDTilesDecoderOptions } from './types';
 
 const MAX_METADATA_RETRIES = 120;
+
+/**
+ * Work around 3D Tiles textures failing to load on the Android System WebView.
+ *
+ * Embedded glTF textures are decoded to same-origin `blob:` object URLs, and
+ * three's GLTFLoader loads textures with `crossOrigin = "anonymous"`. On WebViews
+ * whose user agent disables three's ImageBitmap fast path (older three excludes
+ * "Safari", which the Android WebView UA contains), this falls back to an
+ * `<img crossorigin="anonymous">`; Android then performs a CORS check that an
+ * object URL — which carries no CORS headers — fails, so the texture errors with
+ * "THREE.GLTFLoader: Couldn't load texture blob:…". It works on desktop because
+ * those WebViews are lenient about CORS on same-origin object URLs.
+ *
+ * Same-origin `blob:`/`data:` images never taint the WebGL canvas, so loading
+ * them without `crossOrigin` is safe. We route only those URLs through a sibling
+ * loader with `crossOrigin` cleared, leaving real http(s) textures on the
+ * default CORS path (so cross-origin textures are unaffected).
+ *
+ * Exported for testing.
+ */
+export function patchGltfTextureLoaderForBlob(gltfLoader: GLTFLoader): void {
+  gltfLoader.register((parser: GLTFParser): GLTFLoaderPlugin => {
+    const base = parser.textureLoader;
+    const local =
+      base instanceof THREE.ImageBitmapLoader
+        ? new THREE.ImageBitmapLoader(base.manager)
+        : new THREE.TextureLoader(base.manager);
+    local.setRequestHeader(base.requestHeader);
+    // `undefined` (not "") makes three skip the crossOrigin attribute/CORS path.
+    (local as unknown as { crossOrigin: string | undefined }).crossOrigin =
+      undefined;
+
+    type LoadFn = (
+      url: string,
+      onLoad: (data: never) => void,
+      onProgress?: (event: ProgressEvent) => void,
+      onError?: (err: unknown) => void,
+    ) => unknown;
+    const target = base as unknown as { load: LoadFn };
+    const baseLoad = target.load.bind(base) as LoadFn;
+    const localLoad = (local as unknown as { load: LoadFn }).load.bind(
+      local,
+    ) as LoadFn;
+    target.load = (url, onLoad, onProgress, onError) =>
+      (url.startsWith('blob:') || url.startsWith('data:')
+        ? localLoad
+        : baseLoad)(url, onLoad, onProgress, onError);
+
+    const plugin: GLTFLoaderPlugin & { name: string } = {
+      name: 'GEOLIBRE_blob_texture_crossorigin',
+    };
+    return plugin;
+  });
+}
 
 function requestMetadataFrame(callback: FrameRequestCallback): number {
   if (typeof globalThis.requestAnimationFrame === 'function') {
@@ -252,6 +310,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     ktx2Loader.setTranscoderPath(this._options.ktx2TranscoderPath);
     ktx2Loader.detectSupport(this._renderer);
     gltfLoader.setKTX2Loader(ktx2Loader);
+    patchGltfTextureLoaderForBlob(gltfLoader);
 
     this._tiles = new TilesRenderer(this._options.tilesetUrl);
     const requestHeaders = this._options.requestHeaders;
