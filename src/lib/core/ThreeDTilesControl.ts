@@ -30,6 +30,8 @@ const DEFAULT_OPTIONS: ResolvedThreeDTilesControlOptions = {
   className: '',
   collapseOnClickOutside: true,
   layerId: 'maplibre-gl-3d-tiles',
+  sampleData: [],
+  sampleDataLabel: 'Load sample data...',
   tilesetUrl: DEFAULT_TILESET_URL,
   layerName: '3D Tiles',
   beforeId: undefined,
@@ -510,6 +512,8 @@ export class ThreeDTilesControl implements IControl {
     this._tilesetList = document.createElement('div');
     this._tilesetList.className = 'three-d-tiles-list';
 
+    const sampleDropdown = this._createSampleDropdown();
+    if (sampleDropdown) form.appendChild(sampleDropdown);
     form.appendChild(this._wrapField('Tileset URL', this._urlInput));
     form.appendChild(this._wrapField('Layer name', this._layerNameInput));
     form.appendChild(
@@ -537,6 +541,89 @@ export class ThreeDTilesControl implements IControl {
     input.value = value;
     input.setAttribute('aria-label', label);
     return input;
+  }
+
+  /**
+   * Builds the "Load sample data" dropdown: a custom (not native `<select>`)
+   * dropdown so the menu themes correctly in dark mode. Picking an entry fills
+   * the Tileset URL input. Returns null when no samples are configured.
+   */
+  private _createSampleDropdown(): HTMLElement | null {
+    const samples = this._options.sampleData;
+    if (!samples || samples.length === 0) return null;
+
+    const placeholder = this._options.sampleDataLabel;
+    const triggerLabel = document.createElement('span');
+    triggerLabel.className = 'three-d-tiles-sample-trigger-label';
+    triggerLabel.textContent = placeholder;
+    const caret = document.createElement('span');
+    caret.className = 'three-d-tiles-sample-caret';
+    caret.textContent = '▾';
+    const trigger = document.createElement('button');
+    trigger.type = 'button';
+    trigger.className = 'three-d-tiles-sample-trigger';
+    trigger.setAttribute('aria-haspopup', 'listbox');
+    trigger.setAttribute('aria-expanded', 'false');
+    trigger.setAttribute('aria-label', placeholder);
+    trigger.appendChild(triggerLabel);
+    trigger.appendChild(caret);
+
+    const menu = document.createElement('div');
+    menu.className = 'three-d-tiles-sample-menu';
+    menu.setAttribute('role', 'listbox');
+    menu.hidden = true;
+
+    let menuOpen = false;
+    const setMenuOpen = (open: boolean): void => {
+      menuOpen = open;
+      menu.hidden = !open;
+      trigger.setAttribute('aria-expanded', String(open));
+      trigger.classList.toggle('open', open);
+      if (open) (menu.firstElementChild as HTMLElement | null)?.focus();
+    };
+
+    for (const sample of samples) {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.className = 'three-d-tiles-sample-option';
+      option.setAttribute('role', 'option');
+      option.textContent = sample.label;
+      option.title = sample.url;
+      option.addEventListener('click', () => {
+        setMenuOpen(false);
+        trigger.focus();
+        if (this._urlInput) this._urlInput.value = sample.url;
+      });
+      menu.appendChild(option);
+    }
+
+    trigger.addEventListener('click', () => setMenuOpen(!menuOpen));
+
+    const wrap = document.createElement('div');
+    wrap.className = 'three-d-tiles-field three-d-tiles-sample-row';
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = 'Sample data';
+    wrap.appendChild(labelSpan);
+    const dropdown = document.createElement('div');
+    dropdown.className = 'three-d-tiles-sample-dropdown';
+    dropdown.appendChild(trigger);
+    dropdown.appendChild(menu);
+    wrap.appendChild(dropdown);
+
+    // Close on Escape or when focus leaves the dropdown (no document-level
+    // listener to tear down).
+    wrap.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && menuOpen) {
+        setMenuOpen(false);
+        trigger.focus();
+      }
+    });
+    wrap.addEventListener('focusout', (e) => {
+      const next = e.relatedTarget as Node | null;
+      if (!next || !wrap.contains(next)) setMenuOpen(false);
+    });
+
+    return wrap;
   }
 
   private _createTextarea(

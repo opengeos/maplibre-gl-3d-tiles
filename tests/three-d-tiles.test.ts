@@ -202,6 +202,45 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().collapsed).toBe(false);
   });
 
+  it('renders no sample dropdown by default', () => {
+    const { map, controlsContainer, mapContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ collapsed: false });
+    controlsContainer.appendChild(control.onAdd(map as never));
+    expect(mapContainer.querySelector('.three-d-tiles-sample-menu')).toBeNull();
+  });
+
+  it('renders a sample dropdown that fills the URL input on selection', () => {
+    const { map, controlsContainer, mapContainer } = createMockMap();
+    const control = new ThreeDTilesControl({
+      collapsed: false,
+      tilesetUrl: '',
+      sampleData: [
+        { label: 'AGI HQ', url: 'https://example.com/agi/tileset.json' },
+        { label: 'New York', url: 'https://example.com/ny/tileset.json' },
+      ],
+    });
+    controlsContainer.appendChild(control.onAdd(map as never));
+
+    const trigger = mapContainer.querySelector<HTMLButtonElement>(
+      '.three-d-tiles-sample-trigger',
+    )!;
+    expect(
+      trigger.querySelector('.three-d-tiles-sample-trigger-label')?.textContent,
+    ).toBe('Load sample data...');
+    const urlInput = mapContainer.querySelector<HTMLInputElement>(
+      'input[aria-label="Tileset URL"]',
+    )!;
+    expect(urlInput.value).toBe('');
+
+    const options = [
+      ...mapContainer.querySelectorAll<HTMLButtonElement>('.three-d-tiles-sample-option'),
+    ];
+    expect(options.map((o) => o.textContent)).toEqual(['AGI HQ', 'New York']);
+
+    options[1].click();
+    expect(urlInput.value).toBe('https://example.com/ny/tileset.json');
+  });
+
   it('orders URL, layer name, request headers, and before layer ID fields first', () => {
     const { map, controlsContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });
