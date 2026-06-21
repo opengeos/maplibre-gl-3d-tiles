@@ -202,7 +202,7 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().collapsed).toBe(false);
   });
 
-  it('adds a corner resize handle to the panel', () => {
+  it('adds bottom-corner resize handles to the panel', () => {
     const { map, controlsContainer, mapContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });
 
@@ -210,7 +210,12 @@ describe('ThreeDTilesControl', () => {
 
     const panel = mapContainer.querySelector('.three-d-tiles-control-panel');
     expect(panel).toBeTruthy();
-    expect(panel?.querySelector('.three-d-tiles-control-resize')).toBeTruthy();
+    expect(
+      panel?.querySelector('.three-d-tiles-control-resize-left'),
+    ).toBeTruthy();
+    expect(
+      panel?.querySelector('.three-d-tiles-control-resize-right'),
+    ).toBeTruthy();
   });
 
   it('renders no sample dropdown by default', () => {

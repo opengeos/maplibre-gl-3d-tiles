@@ -70,24 +70,50 @@
 }
 
 /* Engine-independent resize affordance (CSS `resize` is unreliable in
-   WebKitGTK). Placed at the panel's inward corner by _addResizeHandle(). */
-.three-d-tiles-control-resize {
+   WebKitGTK). Two handles sit in the panel's bottom corners, added by
+   _addResizeHandles(). */
+.three-d-tiles-control-resize-handle {
   position: absolute;
+  bottom: 0;
   width: 16px;
   height: 16px;
   z-index: 5;
-  color: #6b7280;
-  opacity: 0.55;
   touch-action: none;
-  background-image: repeating-linear-gradient(
-    135deg,
-    currentcolor 0 1px,
-    transparent 1px 3px
-  );
 }
 
-.three-d-tiles-control-resize:hover {
-  opacity: 0.9;
+.three-d-tiles-control-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  border-color: #6b7280;
+  border-style: solid;
+  opacity: 0.7;
+}
+
+.three-d-tiles-control-resize-handle:hover::after {
+  opacity: 1;
+}
+
+.three-d-tiles-control-resize-right {
+  right: 0;
+  cursor: nwse-resize;
+}
+
+.three-d-tiles-control-resize-right::after {
+  right: 3px;
+  border-width: 0 2px 2px 0;
+}
+
+.three-d-tiles-control-resize-left {
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.three-d-tiles-control-resize-left::after {
+  left: 3px;
+  border-width: 0 0 2px 2px;
 }
 
 .three-d-tiles-control-header {
