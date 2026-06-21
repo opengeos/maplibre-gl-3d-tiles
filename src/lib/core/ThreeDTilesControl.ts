@@ -17,6 +17,12 @@ const DEFAULT_TILESET_URL = 'https://pelican-public.s3.amazonaws.com/3dtiles/agi
 const DEFAULT_DRACO_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/draco/`;
 const DEFAULT_KTX2_PATH = `https://unpkg.com/three@${THREE_VERSION}/examples/jsm/libs/basis/`;
 
+/** Smallest user-resized panel footprint. */
+const PANEL_MIN_WIDTH = 260;
+const PANEL_MIN_HEIGHT = 180;
+/** Breathing room kept between a resized panel and the map edges. */
+const PANEL_EDGE_MARGIN = 12;
+
 type ResolvedThreeDTilesControlOptions = Required<
   Omit<ThreeDTilesControlOptions, 'beforeId' | 'requestHeaders'>
 > &
@@ -75,6 +81,10 @@ export class ThreeDTilesControl implements IControl {
   private _mapResizeHandler: (() => void) | null = null;
   private _clickOutsideHandler: ((e: MouseEvent) => void) | null = null;
   private _tilesetCounter = 0;
+  /** User-chosen panel size from the resize handle, re-applied on reposition. */
+  private _userPanelSize: { width: number; height: number } | null = null;
+  /** Repositions the resize handle to the panel's inward corner. */
+  private _placeResizeHandle: (() => void) | null = null;
 
   constructor(options?: ThreeDTilesControlOptions) {
     this._options = { ...DEFAULT_OPTIONS, ...options };
@@ -451,8 +461,132 @@ export class ThreeDTilesControl implements IControl {
 
     panel.appendChild(header);
     panel.appendChild(this._content);
+    this._addResizeHandle(panel);
 
     return panel;
+  }
+
+  /**
+   * Adds a drag handle that resizes the panel in both dimensions. The panel is
+   * absolutely positioned and anchored to its docking corner, so a custom
+   * handle is used instead of CSS `resize` (which is unreliable in WebKitGTK):
+   * it sits at the panel's inward corner and grows toward the map interior, in
+   * any corner. The anchored edges stay fixed; only width/height change.
+   *
+   * @param panel - The panel element to make resizable.
+   */
+  private _addResizeHandle(panel: HTMLElement): void {
+    const handle = document.createElement('div');
+    handle.className = 'three-d-tiles-control-resize';
+    handle.setAttribute('aria-hidden', 'true');
+    panel.appendChild(handle);
+
+    const placeHandle = (): void => {
+      const pos = this._getControlPosition();
+      const right = pos.endsWith('right');
+      const bottom = pos.startsWith('bottom');
+      handle.style.top = bottom ? '0' : 'auto';
+      handle.style.bottom = bottom ? 'auto' : '0';
+      handle.style.left = right ? '0' : 'auto';
+      handle.style.right = right ? 'auto' : '0';
+      handle.style.cursor = right === bottom ? 'nwse-resize' : 'nesw-resize';
+    };
+    placeHandle();
+    this._placeResizeHandle = placeHandle;
+
+    let right = false;
+    let bottom = false;
+    let startX = 0;
+    let startY = 0;
+    let startW = 0;
+    let startH = 0;
+    let maxW = Infinity;
+    let maxH = Infinity;
+
+    const onMove = (event: PointerEvent): void => {
+      const dx = event.clientX - startX;
+      const dy = event.clientY - startY;
+      const width = Math.min(
+        maxW,
+        Math.max(PANEL_MIN_WIDTH, right ? startW - dx : startW + dx),
+      );
+      const height = Math.min(
+        maxH,
+        Math.max(PANEL_MIN_HEIGHT, bottom ? startH - dy : startH + dy),
+      );
+      this._userPanelSize = { width, height };
+      this._applyUserPanelSize();
+    };
+    const onEnd = (event: PointerEvent): void => {
+      handle.releasePointerCapture?.(event.pointerId);
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onEnd);
+      handle.removeEventListener('pointercancel', onEnd);
+    };
+    handle.addEventListener('pointerdown', (event) => {
+      if (!this._panel || !this._mapContainer) return;
+      event.preventDefault();
+      event.stopPropagation();
+      placeHandle();
+      const pos = this._getControlPosition();
+      right = pos.endsWith('right');
+      bottom = pos.startsWith('bottom');
+      const mapRect = this._mapContainer.getBoundingClientRect();
+      const rect = this._panel.getBoundingClientRect();
+      startX = event.clientX;
+      startY = event.clientY;
+      startW = rect.width;
+      startH = rect.height;
+      // The anchored edge is fixed, so the room to grow is constant for the
+      // whole drag: from that edge to the opposite map edge, less a margin.
+      maxW =
+        (right ? rect.right - mapRect.left : mapRect.right - rect.left) -
+        PANEL_EDGE_MARGIN;
+      maxH =
+        (bottom ? rect.bottom - mapRect.top : mapRect.bottom - rect.top) -
+        PANEL_EDGE_MARGIN;
+      handle.setPointerCapture?.(event.pointerId);
+      handle.addEventListener('pointermove', onMove);
+      handle.addEventListener('pointerup', onEnd);
+      // Touch/pen drags can end with pointercancel instead of pointerup.
+      handle.addEventListener('pointercancel', onEnd);
+    });
+  }
+
+  /**
+   * Applies the user-chosen panel size, clamped to the room available from the
+   * panel's anchored corner to the opposite map edge. Re-run on reposition so
+   * the size survives expand / window-resize (which rewrite the panel's
+   * positioning) and stays within the map.
+   */
+  private _applyUserPanelSize(): void {
+    if (!this._panel || !this._userPanelSize || !this._mapContainer) return;
+    const mapRect = this._mapContainer.getBoundingClientRect();
+    const pos = this._getControlPosition();
+    const right = pos.endsWith('right');
+    const bottom = pos.startsWith('bottom');
+    const rect = this._panel.getBoundingClientRect();
+    const maxW =
+      (right ? rect.right - mapRect.left : mapRect.right - rect.left) -
+      PANEL_EDGE_MARGIN;
+    const maxH =
+      (bottom ? rect.bottom - mapRect.top : mapRect.bottom - rect.top) -
+      PANEL_EDGE_MARGIN;
+    // Cap to the room available even when that is below the minimum, so a
+    // small map / window can't force an overflowing panel after reposition.
+    const width = Math.min(
+      Math.max(PANEL_MIN_WIDTH, this._userPanelSize.width),
+      Math.max(0, maxW),
+    );
+    const height = Math.min(
+      Math.max(PANEL_MIN_HEIGHT, this._userPanelSize.height),
+      Math.max(0, maxH),
+    );
+    this._panel.style.boxSizing = 'border-box';
+    this._panel.style.maxWidth = 'none';
+    this._panel.style.maxHeight = 'none';
+    this._panel.style.width = `${width}px`;
+    this._panel.style.height = `${height}px`;
   }
 
   private _createForm(): HTMLElement {
@@ -821,30 +955,52 @@ export class ThreeDTilesControl implements IControl {
     const buttonLeft = buttonRect.left - mapRect.left;
     const buttonRight = mapRect.right - buttonRect.right;
     const panelGap = 5;
+    const edgeMargin = 10; // Breathing room between the panel and the map edge
 
     this._panel.style.top = '';
     this._panel.style.bottom = '';
     this._panel.style.left = '';
     this._panel.style.right = '';
 
+    // Offset of the panel's anchored edge from the same edge of the map
+    // container (top edge for top-* positions, bottom edge for bottom-*).
+    const anchorOffset =
+      (position === 'top-left' || position === 'top-right'
+        ? buttonTop
+        : buttonBottom) +
+      buttonRect.height +
+      panelGap;
+
     switch (position) {
       case 'top-left':
-        this._panel.style.top = `${buttonTop + buttonRect.height + panelGap}px`;
+        this._panel.style.top = `${anchorOffset}px`;
         this._panel.style.left = `${buttonLeft}px`;
         break;
       case 'top-right':
-        this._panel.style.top = `${buttonTop + buttonRect.height + panelGap}px`;
+        this._panel.style.top = `${anchorOffset}px`;
         this._panel.style.right = `${buttonRight}px`;
         break;
       case 'bottom-left':
-        this._panel.style.bottom = `${buttonBottom + buttonRect.height + panelGap}px`;
+        this._panel.style.bottom = `${anchorOffset}px`;
         this._panel.style.left = `${buttonLeft}px`;
         break;
       case 'bottom-right':
-        this._panel.style.bottom = `${buttonBottom + buttonRect.height + panelGap}px`;
+        this._panel.style.bottom = `${anchorOffset}px`;
         this._panel.style.right = `${buttonRight}px`;
         break;
     }
+
+    // Let the panel size to its content but never spill past the map: cap it to
+    // the space left between the anchor and the opposite map edge so it scrolls
+    // its own content instead of being clipped by the map's overflow. The 160px
+    // floor keeps the panel usable when the map is tiny.
+    const available = Math.max(160, mapRect.height - anchorOffset - edgeMargin);
+    this._panel.style.maxHeight = `min(80vh, 720px, ${available}px)`;
+
+    // Keep the resize handle on the (possibly changed) inward corner, and
+    // re-assert a user-chosen size against the new anchor / map bounds.
+    this._placeResizeHandle?.();
+    this._applyUserPanelSize();
   }
 
   private _getAltitudeOffset(): number {
