@@ -14,6 +14,7 @@ export type {
   ThreeDTilesDecoderOptions,
   ThreeDTilesItemState,
   ThreeDTilesLoadOptions,
+  ThreeDTilesSampleDataset,
   ThreeDTilesState,
   ThreeDTilesStatus,
 } from './lib/core/types';

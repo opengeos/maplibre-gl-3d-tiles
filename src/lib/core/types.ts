@@ -24,6 +24,17 @@ export interface ThreeDTilesDecoderOptions {
   ktx2TranscoderPath: string;
 }
 
+/**
+ * A named sample tileset offered as a one-click entry in the panel's
+ * "Load sample data" dropdown. Picking it fills the Tileset URL input.
+ */
+export interface ThreeDTilesSampleDataset {
+  /** Label shown in the dropdown (e.g. 'AGI HQ'). */
+  label: string;
+  /** Tileset URL filled into the input when this entry is picked. */
+  url: string;
+}
+
 export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOptions>, Partial<ThreeDTilesDecoderOptions> {
   collapsed?: boolean;
   position?: ThreeDTilesControlPosition;
@@ -32,6 +43,17 @@ export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOption
   className?: string;
   collapseOnClickOutside?: boolean;
   layerId?: string;
+  /**
+   * Sample tilesets offered as a "Load sample data" dropdown above the
+   * Tileset URL input; picking one fills the input. Omit or leave empty to
+   * hide the dropdown, so the input stays clean for the user's own URLs.
+   */
+  sampleData?: ThreeDTilesSampleDataset[];
+  /**
+   * Placeholder shown in the sample-data dropdown before a selection.
+   * @default 'Load sample data...'
+   */
+  sampleDataLabel?: string;
 }
 
 export interface ThreeDTilesItemState {

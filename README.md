@@ -111,6 +111,8 @@ Constructor options include:
 | Option | Type | Default |
 | --- | --- | --- |
 | `tilesetUrl` | `string` | MapLibre example tileset |
+| `sampleData` | `ThreeDTilesSampleDataset[]` | `[]` (hides the "Load sample data" dropdown) |
+| `sampleDataLabel` | `string` | `'Load sample data...'` |
 | `layerName` | `string` | `3D Tiles` |
 | `beforeId` | `string` | `undefined` |
 | `altitudeOffset` | `number` | `-300` |
