@@ -202,6 +202,22 @@ describe('ThreeDTilesControl', () => {
     expect(control.getState().collapsed).toBe(false);
   });
 
+  it('adds bottom-corner resize handles to the panel', () => {
+    const { map, controlsContainer, mapContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ collapsed: false });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+
+    const panel = mapContainer.querySelector('.three-d-tiles-control-panel');
+    expect(panel).toBeTruthy();
+    expect(
+      panel?.querySelector('.three-d-tiles-control-resize-left'),
+    ).toBeTruthy();
+    expect(
+      panel?.querySelector('.three-d-tiles-control-resize-right'),
+    ).toBeTruthy();
+  });
+
   it('renders no sample dropdown by default', () => {
     const { map, controlsContainer, mapContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });

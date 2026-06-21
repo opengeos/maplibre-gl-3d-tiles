@@ -1,6 +1,6 @@
 {
   "name": "maplibre-gl-3d-tiles",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A MapLibre GL JS control for rendering 3D Tiles with three.js",
   "type": "module",
   "main": "./dist/index.cjs",

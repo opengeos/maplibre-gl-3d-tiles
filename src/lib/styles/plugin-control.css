@@ -47,8 +47,13 @@
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.1);
   min-width: 260px;
   max-width: min(420px, calc(100% - 20px));
-  max-height: 520px;
-  overflow-y: auto;
+  /* JS (_updatePanelPosition) sets maxHeight to the room available between the
+     anchored corner and the opposite map edge, so the panel sizes to content
+     and grows up to that room. The content area scrolls when it overflows. The
+     panel clips so the resize handle (an absolutely-positioned child) stays
+     pinned to the corner and never scrolls away with the content. */
+  max-height: min(80vh, 720px);
+  overflow: hidden;
   z-index: 1000;
   padding: 8px;
   font-size: 12px;
@@ -56,8 +61,59 @@
   display: none;
 }
 
+/* Flex column so the header keeps its height and the content flexes to fill
+   the panel (whether the panel auto-sizes to content up to maxHeight, or the
+   user has set an explicit size via the resize handle). */
 .three-d-tiles-control-panel.expanded {
-  display: block;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Engine-independent resize affordance (CSS `resize` is unreliable in
+   WebKitGTK). Two handles sit in the panel's bottom corners, added by
+   _addResizeHandles(). */
+.three-d-tiles-control-resize-handle {
+  position: absolute;
+  bottom: 0;
+  width: 16px;
+  height: 16px;
+  z-index: 5;
+  touch-action: none;
+}
+
+.three-d-tiles-control-resize-handle::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 7px;
+  height: 7px;
+  border-color: #6b7280;
+  border-style: solid;
+  opacity: 0.7;
+}
+
+.three-d-tiles-control-resize-handle:hover::after {
+  opacity: 1;
+}
+
+.three-d-tiles-control-resize-right {
+  right: 0;
+  cursor: nwse-resize;
+}
+
+.three-d-tiles-control-resize-right::after {
+  right: 3px;
+  border-width: 0 2px 2px 0;
+}
+
+.three-d-tiles-control-resize-left {
+  left: 0;
+  cursor: nesw-resize;
+}
+
+.three-d-tiles-control-resize-left::after {
+  left: 3px;
+  border-width: 0 0 2px 2px;
 }
 
 .three-d-tiles-control-header {
@@ -97,7 +153,8 @@
 }
 
 .three-d-tiles-control-content {
-  max-height: 440px;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
