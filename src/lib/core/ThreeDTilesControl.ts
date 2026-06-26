@@ -665,6 +665,7 @@ export class ThreeDTilesControl implements IControl {
     form.appendChild(
       this._wrapField('Request headers', this._headersInput, {
         hint: 'One per line as Name: Value, for authenticated tilesets. Saved with the layer.',
+        grow: true,
       }),
     );
     form.appendChild(this._wrapField('Before layer ID', this._beforeIdInput));
@@ -803,10 +804,13 @@ export class ThreeDTilesControl implements IControl {
   private _wrapField(
     labelText: string,
     input: HTMLInputElement | HTMLTextAreaElement,
-    options?: { hint?: string },
+    options?: { hint?: string; grow?: boolean },
   ): HTMLElement {
     const label = document.createElement('label');
     label.className = 'three-d-tiles-field';
+    // The growable field absorbs the panel's spare vertical space so resizing
+    // enlarges its control instead of leaving whitespace below the form.
+    if (options?.grow) label.classList.add('three-d-tiles-field-grow');
     const span = document.createElement('span');
     span.textContent = labelText;
     label.appendChild(span);
@@ -1004,10 +1008,13 @@ export class ThreeDTilesControl implements IControl {
 
     // Let the panel size to its content but never spill past the map: cap it to
     // the space left between the anchor and the opposite map edge so it scrolls
-    // its own content instead of being clipped by the map's overflow. The 160px
-    // floor keeps the panel usable when the map is tiny.
+    // its own content instead of being clipped by the map's overflow. Using the
+    // full available room (rather than a fixed 720px/80vh cap) lets a tall
+    // viewport show every field in one view, with a scrollbar only as a
+    // fallback when the content genuinely exceeds the room. The 160px floor
+    // keeps the panel usable when the map is tiny.
     const available = Math.max(160, mapRect.height - anchorOffset - edgeMargin);
-    this._panel.style.maxHeight = `min(80vh, 720px, ${available}px)`;
+    this._panel.style.maxHeight = `${available}px`;
     const availableWidth = Math.max(120, mapRect.width - 2 * edgeMargin);
 
     // Reapply a resize the user made, clamped to the current map size, so
