@@ -218,6 +218,19 @@ describe('ThreeDTilesControl', () => {
     ).toBeTruthy();
   });
 
+  it('marks the Request headers field growable so it absorbs panel height', () => {
+    const { map, controlsContainer, mapContainer } = createMockMap();
+    const control = new ThreeDTilesControl({ collapsed: false });
+
+    controlsContainer.appendChild(control.onAdd(map as never));
+
+    const growable = mapContainer.querySelector('.three-d-tiles-field-grow');
+    expect(growable).toBeTruthy();
+    // The growable field is the one wrapping the Request headers textarea, so a
+    // taller panel enlarges that control instead of leaving whitespace.
+    expect(growable?.querySelector('.three-d-tiles-textarea')).toBeTruthy();
+  });
+
   it('renders no sample dropdown by default', () => {
     const { map, controlsContainer, mapContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });

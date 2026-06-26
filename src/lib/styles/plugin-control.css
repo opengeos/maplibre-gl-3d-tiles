@@ -156,12 +156,20 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* Flex column so the form fills the content area; extra vertical space (from
+     auto-sizing or a user resize) flows into the growable field rather than
+     pooling as empty whitespace below the form. */
+  display: flex;
+  flex-direction: column;
 }
 
 .three-d-tiles-form {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  /* Fill the content area so the growable field can absorb spare height. */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .three-d-tiles-field {
@@ -171,6 +179,19 @@
   color: #374151;
   font-size: 12px;
   font-weight: 500;
+}
+
+/* The field flagged growable (Request headers) expands to take any vertical
+   space the panel has beyond the other fields, so a taller panel enlarges its
+   textarea instead of adding whitespace. */
+.three-d-tiles-field-grow {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.three-d-tiles-field-grow .three-d-tiles-textarea {
+  flex: 1 1 auto;
+  height: auto;
 }
 
 .three-d-tiles-input {
