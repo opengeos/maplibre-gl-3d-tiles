@@ -9,6 +9,22 @@ import {
   ThreeDTilesLayer,
 } from '../src/lib/core/ThreeDTilesLayer';
 
+const webGLRendererConstructor = vi.hoisted(() => vi.fn());
+
+vi.mock('three', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('three')>();
+  return {
+    ...actual,
+    WebGLRenderer: class {
+      autoClear = true;
+
+      constructor(parameters: unknown) {
+        webGLRendererConstructor(parameters);
+      }
+    },
+  };
+});
+
 function createMockMap() {
   const mapContainer = document.createElement('div');
   mapContainer.className = 'maplibregl-map';
@@ -59,6 +75,32 @@ describe('ecefToLngLatAlt', () => {
 });
 
 describe('ThreeDTilesLayer', () => {
+  it('enables alpha when creating the Three.js renderer', () => {
+    const { map } = createMockMap();
+    const canvas = map.getCanvas();
+    const gl = {} as WebGLRenderingContext;
+    webGLRendererConstructor.mockClear();
+    const layer = new ThreeDTilesLayer({
+      id: 'test-3d-tiles',
+      tilesetUrl: 'https://example.com/tileset.json',
+      altitudeOffset: 0,
+      opacity: 1,
+      visible: true,
+    });
+    const initTiles = vi.fn();
+    (layer as unknown as { _initTiles: () => void })._initTiles = initTiles;
+
+    layer.onAdd(map as never, gl);
+
+    expect(webGLRendererConstructor).toHaveBeenCalledWith({
+      canvas,
+      context: gl,
+      antialias: true,
+      alpha: true,
+    });
+    expect(initTiles).toHaveBeenCalledOnce();
+  });
+
   it('retries metadata extraction until tileset bounds are available', () => {
     vi.useFakeTimers();
 

@@ -175,6 +175,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       canvas: map.getCanvas(),
       context: gl,
       antialias: true,
+      alpha: true,
     });
     this._renderer.autoClear = false;
 
