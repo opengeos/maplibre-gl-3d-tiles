@@ -4,6 +4,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { plugin } from '../src/geolibre';
 import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
 import {
+  createThreeRendererParameters,
   ecefToLngLatAlt,
   patchGltfTextureLoaderForBlob,
   ThreeDTilesLayer,
@@ -59,6 +60,19 @@ describe('ecefToLngLatAlt', () => {
 });
 
 describe('ThreeDTilesLayer', () => {
+  it('preserves tiles on a transparent MapLibre canvas', () => {
+    const canvas = document.createElement('canvas');
+    const map = { getCanvas: vi.fn(() => canvas) };
+    const gl = {} as WebGLRenderingContext;
+
+    expect(createThreeRendererParameters(map as never, gl)).toEqual({
+      canvas,
+      context: gl,
+      antialias: true,
+      alpha: true,
+    });
+  });
+
   it('retries metadata extraction until tileset bounds are available', () => {
     vi.useFakeTimers();
 
