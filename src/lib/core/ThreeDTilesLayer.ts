@@ -3,7 +3,9 @@ import type {
   CustomRenderMethodInput,
   Map as MapLibreMap,
 } from 'maplibre-gl';
-import maplibregl from 'maplibre-gl';
+// Named import, not a default one: MapLibre v6 is ESM-only and dropped its
+// default export.
+import { MercatorCoordinate } from 'maplibre-gl';
 import * as THREE from 'three';
 import { TilesRenderer } from '3d-tiles-renderer';
 import {
@@ -429,7 +431,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     modelOrigin: [number, number, number],
     rotate: [number, number, number] = [Math.PI / 2, 0, 0],
   ): void {
-    const modelAsMercatorCoordinate = maplibregl.MercatorCoordinate.fromLngLat(
+    const modelAsMercatorCoordinate = MercatorCoordinate.fromLngLat(
       [modelOrigin[0], modelOrigin[1]],
       modelOrigin[2],
     );
