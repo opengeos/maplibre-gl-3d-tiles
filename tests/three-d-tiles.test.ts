@@ -4,11 +4,26 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { plugin } from '../src/geolibre';
 import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
 import {
-  createThreeRendererParameters,
   ecefToLngLatAlt,
   patchGltfTextureLoaderForBlob,
   ThreeDTilesLayer,
 } from '../src/lib/core/ThreeDTilesLayer';
+
+const webGLRendererConstructor = vi.hoisted(() => vi.fn());
+
+vi.mock('three', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('three')>();
+  return {
+    ...actual,
+    WebGLRenderer: class {
+      autoClear = true;
+
+      constructor(parameters: unknown) {
+        webGLRendererConstructor(parameters);
+      }
+    },
+  };
+});
 
 function createMockMap() {
   const mapContainer = document.createElement('div');
@@ -60,17 +75,30 @@ describe('ecefToLngLatAlt', () => {
 });
 
 describe('ThreeDTilesLayer', () => {
-  it('preserves tiles on a transparent MapLibre canvas', () => {
-    const canvas = document.createElement('canvas');
-    const map = { getCanvas: vi.fn(() => canvas) };
+  it('enables alpha when creating the Three.js renderer', () => {
+    const { map } = createMockMap();
+    const canvas = map.getCanvas();
     const gl = {} as WebGLRenderingContext;
+    webGLRendererConstructor.mockClear();
+    const layer = new ThreeDTilesLayer({
+      id: 'test-3d-tiles',
+      tilesetUrl: 'https://example.com/tileset.json',
+      altitudeOffset: 0,
+      opacity: 1,
+      visible: true,
+    });
+    const initTiles = vi.fn();
+    (layer as unknown as { _initTiles: () => void })._initTiles = initTiles;
 
-    expect(createThreeRendererParameters(map as never, gl)).toEqual({
+    layer.onAdd(map as never, gl);
+
+    expect(webGLRendererConstructor).toHaveBeenCalledWith({
       canvas,
       context: gl,
       antialias: true,
       alpha: true,
     });
+    expect(initTiles).toHaveBeenCalledOnce();
   });
 
   it('retries metadata extraction until tileset bounds are available', () => {

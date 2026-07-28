@@ -107,18 +107,6 @@ export interface EcefCoordinate {
   alt: number;
 }
 
-export function createThreeRendererParameters(
-  map: MapLibreMap,
-  gl: WebGLRenderingContext | WebGL2RenderingContext,
-): THREE.WebGLRendererParameters {
-  return {
-    canvas: map.getCanvas(),
-    context: gl,
-    antialias: true,
-    alpha: true,
-  };
-}
-
 export function ecefToLngLatAlt(x: number, y: number, z: number): EcefCoordinate {
   const a = 6378137.0;
   const e2 = 6.69437999014e-3;
@@ -183,7 +171,12 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._scene = new THREE.Scene();
     this._scene.add(new THREE.AmbientLight(0xffffff, 3));
 
-    this._renderer = new THREE.WebGLRenderer(createThreeRendererParameters(map, gl));
+    this._renderer = new THREE.WebGLRenderer({
+      canvas: map.getCanvas(),
+      context: gl,
+      antialias: true,
+      alpha: true,
+    });
     this._renderer.autoClear = false;
 
     this._initTiles();
