@@ -16,6 +16,7 @@ import {
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { LoadedTilesetMetadata, ThreeDTilesDecoderOptions } from './types';
 
 const MAX_METADATA_RETRIES = 120;
@@ -143,6 +144,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _camera?: THREE.PerspectiveCamera;
   private _tilesCamera?: THREE.PerspectiveCamera;
   private _renderer?: THREE.WebGLRenderer;
+  private _pmrem?: THREE.PMREMGenerator;
+  private _environment?: THREE.WebGLRenderTarget;
   private _tiles?: TilesRenderer;
   private _localTransform?: THREE.Matrix4;
   private _metadata?: LoadedTilesetMetadata;
@@ -157,6 +160,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _visible: boolean;
   private _loadTilesetHandler?: () => void;
   private _loadErrorHandler?: (event: { error: Error }) => void;
+  private _loadModelHandler?: (event: { scene: THREE.Object3D }) => void;
   private _metadataRetryFrame: number | null = null;
   private _metadataRetryCount = 0;
 
@@ -181,6 +185,26 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       alpha: true,
     });
     this._renderer.autoClear = false;
+
+    // glTF defaults metallicFactor to 1, and plenty of real tilesets (3DBAG,
+    // for one) rely on that default while setting only a baseColorFactor. A
+    // fully metallic surface has no diffuse response -- three computes
+    // `diffuseContribution = diffuseColor * (1 - metalness)` -- so an
+    // AmbientLight alone leaves it pure black. Give the scene an environment so
+    // metals have something to reflect, which is what other 3D Tiles viewers do.
+    //
+    // Prefiltering renders to an offscreen target, so it needs a fully featured
+    // renderer. Losing the environment only costs metallic tilesets their
+    // shading, which is not worth failing the whole layer over.
+    try {
+      this._pmrem = new THREE.PMREMGenerator(this._renderer);
+      this._environment = this._pmrem.fromScene(new RoomEnvironment(), 0.04);
+      this._scene.environment = this._environment.texture;
+    } catch {
+      this._pmrem?.dispose();
+      this._pmrem = undefined;
+      this._environment = undefined;
+    }
 
     this._initTiles();
   }
@@ -235,9 +259,14 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     if (this._tiles && this._loadErrorHandler) {
       this._tiles.removeEventListener('load-error', this._loadErrorHandler);
     }
+    if (this._tiles && this._loadModelHandler) {
+      this._tiles.removeEventListener('load-model', this._loadModelHandler);
+    }
 
     this._tiles?.dispose();
     this._scene?.clear();
+    this._environment?.dispose();
+    this._pmrem?.dispose();
     this._renderer?.dispose();
 
     this._map = undefined;
@@ -245,11 +274,14 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._camera = undefined;
     this._tilesCamera = undefined;
     this._renderer = undefined;
+    this._pmrem = undefined;
+    this._environment = undefined;
     this._tiles = undefined;
     this._localTransform = undefined;
     this._anchor = undefined;
     this._loadTilesetHandler = undefined;
     this._loadErrorHandler = undefined;
+    this._loadModelHandler = undefined;
     this._metadataRetryFrame = null;
     this._metadataRetryCount = 0;
   }
@@ -342,11 +374,44 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
 
     this._loadTilesetHandler = () => this._handleTilesetLoaded();
     this._loadErrorHandler = (event) => this._options.onError?.(event.error);
+    this._loadModelHandler = (event) => this._applyEnvironment(event.scene);
     this._tiles.addEventListener('load-tileset', this._loadTilesetHandler);
     this._tiles.addEventListener('load-error', this._loadErrorHandler);
+    this._tiles.addEventListener('load-model', this._loadModelHandler);
 
     this._updateLocalTransform([0, 0, 0]);
     this._applyOpacity();
+  }
+
+  /**
+   * Point a freshly loaded tile's materials at the scene environment.
+   *
+   * glTF defaults `metallicFactor` to 1, and tilesets that set only a
+   * `baseColorFactor` (3DBAG, for one) inherit it. three computes
+   * `diffuseContribution = diffuseColor * (1 - metalness)`, so a fully metallic
+   * surface has no diffuse response at all and the scene's AmbientLight -- which
+   * only feeds diffuse -- leaves it pure black. The environment gives those
+   * metals something to reflect.
+   *
+   * Setting `scene.environment` alone is not enough: tile materials are created
+   * after the renderer has already compiled programs for this scene, and they
+   * keep rendering black until they are flagged for recompilation.
+   */
+  private _applyEnvironment(tileScene: THREE.Object3D): void {
+    if (!this._scene?.environment) return;
+
+    tileScene.traverse((object) => {
+      const mesh = object as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const materials = Array.isArray(mesh.material)
+        ? mesh.material
+        : [mesh.material];
+      for (const material of materials) {
+        if ((material as THREE.MeshStandardMaterial).isMeshStandardMaterial) {
+          material.needsUpdate = true;
+        }
+      }
+    });
   }
 
   private _handleTilesetLoaded(): void {
