@@ -15,6 +15,7 @@ import {
 } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { LoadedTilesetMetadata, ThreeDTilesDecoderOptions } from './types';
 
 const MAX_METADATA_RETRIES = 120;
@@ -313,6 +314,12 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     ktx2Loader.setTranscoderPath(this._options.ktx2TranscoderPath);
     ktx2Loader.detectSupport(this._renderer);
     gltfLoader.setKTX2Loader(ktx2Loader);
+
+    // Tilesets such as 3DBAG list EXT_meshopt_compression in extensionsRequired,
+    // and GLTFLoader throws rather than falling back when no decoder is set. The
+    // decoder ships inside three as an ES module, so unlike DRACO and KTX2 it
+    // bundles with the library and needs no configurable path.
+    gltfLoader.setMeshoptDecoder(MeshoptDecoder);
     patchGltfTextureLoaderForBlob(gltfLoader);
 
     this._tiles = new TilesRenderer(this._options.tilesetUrl);
