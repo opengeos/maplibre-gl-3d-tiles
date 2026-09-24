@@ -12,6 +12,9 @@ const handlers = vi.hoisted(
 vi.mock('3d-tiles-renderer', async () => {
   const three = await import('three');
   return {
+    OBB: class {
+      updatePlanes() {}
+    },
     TilesRenderer: class {
       group = new three.Group();
       fetchOptions: Record<string, unknown> = {};

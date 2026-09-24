@@ -33,6 +33,12 @@ export interface ThreeDTilesSampleDataset {
   label: string;
   /** Tileset URL filled into the input when this entry is picked. */
   url: string;
+  /**
+   * Altitude offset (meters) filled into the input when this entry is picked,
+   * for tilesets whose heights need one to sit on the map (e.g. -43 for 3DBAG,
+   * which stores ellipsoidal heights). Omit to leave the input unchanged.
+   */
+  altitudeOffset?: number;
 }
 
 export interface ThreeDTilesControlOptions extends Partial<ThreeDTilesLoadOptions>, Partial<ThreeDTilesDecoderOptions> {

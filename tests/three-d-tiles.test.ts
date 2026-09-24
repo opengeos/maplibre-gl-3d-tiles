@@ -400,6 +400,32 @@ describe('ThreeDTilesControl', () => {
     expect(urlInput.value).toBe('https://example.com/ny/tileset.json');
   });
 
+  it('fills the altitude offset from a sample that carries one', () => {
+    const { map, controlsContainer, mapContainer } = createMockMap();
+    const control = new ThreeDTilesControl({
+      collapsed: false,
+      tilesetUrl: '',
+      altitudeOffset: -300,
+      sampleData: [
+        { label: 'Plain', url: 'https://example.com/plain/tileset.json' },
+        { label: '3DBAG', url: 'https://example.com/bag/tileset.json', altitudeOffset: -43 },
+      ],
+    });
+    controlsContainer.appendChild(control.onAdd(map as never));
+
+    const altitudeInput = [
+      ...mapContainer.querySelectorAll<HTMLInputElement>('input[type="number"]'),
+    ].find((input) => input.value === '-300')!;
+    const options = [
+      ...mapContainer.querySelectorAll<HTMLButtonElement>('.three-d-tiles-sample-option'),
+    ];
+
+    options[0].click();
+    expect(altitudeInput.value).toBe('-300');
+    options[1].click();
+    expect(altitudeInput.value).toBe('-43');
+  });
+
   it('orders URL, layer name, request headers, and before layer ID fields first', () => {
     const { map, controlsContainer } = createMockMap();
     const control = new ThreeDTilesControl({ collapsed: false });

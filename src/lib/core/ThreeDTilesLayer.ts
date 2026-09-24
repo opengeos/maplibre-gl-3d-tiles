@@ -18,6 +18,11 @@ import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { LoadedTilesetMetadata, ThreeDTilesDecoderOptions } from './types';
+import { patchObbPlanes } from './obbPlanes';
+
+// Correct 3d-tiles-renderer's culling planes for skewed bounding boxes before
+// any tileset is parsed (see obbPlanes.ts).
+patchObbPlanes();
 
 const MAX_METADATA_RETRIES = 120;
 

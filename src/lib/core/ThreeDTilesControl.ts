@@ -740,6 +740,11 @@ export class ThreeDTilesControl implements IControl {
         setMenuOpen(false);
         trigger.focus();
         if (this._urlInput) this._urlInput.value = sample.url;
+        // Only the input changes, so an already loaded tileset keeps its own
+        // offset; the value applies to the next "Add tileset".
+        if (this._altitudeInput && sample.altitudeOffset !== undefined) {
+          this._altitudeInput.value = String(sample.altitudeOffset);
+        }
       });
       menu.appendChild(option);
     }
