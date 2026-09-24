@@ -133,6 +133,23 @@ export function ecefToLngLatAlt(x: number, y: number, z: number): EcefCoordinate
   };
 }
 
+/** Convert WGS84 geodetic coordinates (degrees, meters) to ECEF meters. */
+export function lngLatAltToEcef(lng: number, lat: number, alt: number): THREE.Vector3 {
+  const a = 6378137.0;
+  const e2 = 6.69437999014e-3;
+  const lngRad = (lng * Math.PI) / 180;
+  const latRad = (lat * Math.PI) / 180;
+  const sinLat = Math.sin(latRad);
+  const cosLat = Math.cos(latRad);
+  const n = a / Math.sqrt(1 - e2 * sinLat * sinLat);
+
+  return new THREE.Vector3(
+    (n + alt) * cosLat * Math.cos(lngRad),
+    (n + alt) * cosLat * Math.sin(lngRad),
+    (n * (1 - e2) + alt) * sinLat,
+  );
+}
+
 export class ThreeDTilesLayer implements CustomLayerInterface {
   id: string;
   type: 'custom' = 'custom';
@@ -155,6 +172,14 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
    * re-applied live without reloading the tileset.
    */
   private _anchor?: { lng: number; lat: number; alt: number };
+  /** Tileset bounding sphere in ECEF, used to keep the frame anchor near the data. */
+  private _bounds?: THREE.Sphere;
+  /**
+   * lng/lat the tangent-plane frame is currently anchored at. It follows the
+   * view center (see `_syncFrameToView`), so it differs from `_anchor` once
+   * the user pans away from the tileset center.
+   */
+  private _frameAnchor?: { lng: number; lat: number };
   private _opacity: number;
   private _opacityDirty = true;
   private _visible: boolean;
@@ -228,6 +253,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       return;
     }
 
+    this._syncFrameToView();
     this._camera.projectionMatrix.fromArray(args.defaultProjectionData.mainMatrix);
     this._camera.projectionMatrix.multiply(this._localTransform);
 
@@ -279,6 +305,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._tiles = undefined;
     this._localTransform = undefined;
     this._anchor = undefined;
+    this._bounds = undefined;
+    this._frameAnchor = undefined;
     this._loadTilesetHandler = undefined;
     this._loadErrorHandler = undefined;
     this._loadModelHandler = undefined;
@@ -312,9 +340,9 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._options.altitudeOffset = altitudeOffset;
     if (!this._anchor) return;
 
-    const { lng, lat, alt } = this._anchor;
-    const adjustedAltitude = alt + altitudeOffset;
-    this._updateLocalTransform([lng, lat, adjustedAltitude]);
+    const adjustedAltitude = this._anchor.alt + altitudeOffset;
+    const frame = this._frameAnchor ?? this._anchor;
+    this._applyFrame(frame.lng, frame.lat);
     if (this._metadata) {
       this._metadata = { ...this._metadata, altitude: adjustedAltitude };
     }
@@ -436,18 +464,71 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     const center = sphere.center.clone();
     const { lng, lat, alt } = ecefToLngLatAlt(center.x, center.y, center.z);
     this._anchor = { lng, lat, alt };
+    this._bounds = sphere.clone();
     const adjustedAltitude = alt + this._options.altitudeOffset;
 
-    this._updateLocalTransform([lng, lat, adjustedAltitude]);
+    this._applyFrame(lng, lat);
 
-    // Orient the geometry onto the local tangent plane at the anchor.
-    // 3d-tiles-renderer emits world-space geometry in ECEF, so "up" is the
-    // ellipsoidal normal at the anchor lng/lat, not a fixed axis. We derive the
-    // East/North/Up basis from the anchor location rather than the root tile's
-    // transform: for a Cesium-style tileset the root transform already equals
-    // this ENU basis, while a region-based tileset (e.g. a point cloud with an
-    // RTC center and an identity root transform) ships no usable rotation and
-    // would otherwise be tilted by the site's colatitude.
+    this._metadata = {
+      center: [lng, lat],
+      altitude: adjustedAltitude,
+      radius: sphere.radius,
+    };
+    this._options.onLoad?.(this._metadata);
+  }
+
+  /**
+   * Re-anchor the tangent-plane frame at the current view center.
+   *
+   * The tileset is drawn in a flat East/North/Up frame that is mapped linearly
+   * into Web Mercator around a single anchor point. Both approximations are
+   * exact only at that anchor: the earth curves away from the tangent plane
+   * (about 200 m of drop 50 km out) and Mercator stretches with latitude. For a
+   * nationwide tileset such as 3DBAG, anchoring once at the tileset center put
+   * buildings 50 km away tens of meters off the basemap. Following the view
+   * center keeps the anchor where the user is looking, so what is on screen is
+   * placed accurately at any distance from the tileset center.
+   *
+   * The anchor is clamped to the tileset bounding sphere so a view far from
+   * the data never builds a frame on the other side of the globe.
+   */
+  private _syncFrameToView(): void {
+    if (!this._map || !this._anchor || !this._bounds) return;
+
+    const viewCenter = this._map.getCenter();
+    const point = lngLatAltToEcef(viewCenter.lng, viewCenter.lat, this._anchor.alt);
+    const offset = point.sub(this._bounds.center);
+    const distance = offset.length();
+    if (distance > this._bounds.radius) {
+      offset.multiplyScalar(this._bounds.radius / distance);
+    }
+    const anchorEcef = offset.add(this._bounds.center);
+    const { lng, lat } = ecefToLngLatAlt(anchorEcef.x, anchorEcef.y, anchorEcef.z);
+    if (this._frameAnchor?.lng === lng && this._frameAnchor.lat === lat) return;
+
+    this._applyFrame(lng, lat);
+  }
+
+  /**
+   * Place the tileset in a local East/North/Up frame anchored at `lng`/`lat`.
+   *
+   * 3d-tiles-renderer emits world-space geometry in ECEF, so "up" is the
+   * ellipsoidal normal at the anchor, not a fixed axis. The basis is derived
+   * from the anchor location rather than the root tile's transform: for a
+   * Cesium-style tileset the root transform already equals this ENU basis,
+   * while a region-based tileset (e.g. a point cloud with an RTC center and an
+   * identity root transform) ships no usable rotation and would otherwise be
+   * tilted by the site's colatitude.
+   *
+   * The frame origin sits at the tileset center's ellipsoidal height, so a
+   * vertex at height `h` lands at Mercator altitude `h + altitudeOffset`
+   * wherever the frame is anchored.
+   */
+  private _applyFrame(lng: number, lat: number): void {
+    if (!this._tiles || !this._anchor) return;
+
+    const originAltitude = this._anchor.alt;
+    const origin = lngLatAltToEcef(lng, lat, originAltitude);
     const lngRad = (lng * Math.PI) / 180;
     const latRad = (lat * Math.PI) / 180;
     const sinLng = Math.sin(lngRad);
@@ -468,7 +549,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       -cosLat,
     );
     const rotationMat4 = new THREE.Matrix4().setFromMatrix3(rotationMat3);
-    const moveToOrigin = new THREE.Matrix4().makeTranslation(-center.x, -center.y, -center.z);
+    const moveToOrigin = new THREE.Matrix4().makeTranslation(-origin.x, -origin.y, -origin.z);
     const finalMatrix = new THREE.Matrix4().multiplyMatrices(rotationMat4, moveToOrigin);
 
     const group = this._getTilesGroup();
@@ -476,12 +557,8 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     group.matrixAutoUpdate = false;
     group.updateMatrixWorld(true);
 
-    this._metadata = {
-      center: [lng, lat],
-      altitude: adjustedAltitude,
-      radius: sphere.radius,
-    };
-    this._options.onLoad?.(this._metadata);
+    this._updateLocalTransform([lng, lat, originAltitude + this._options.altitudeOffset]);
+    this._frameAnchor = { lng, lat };
   }
 
   private _retryTilesetMetadata(): void {

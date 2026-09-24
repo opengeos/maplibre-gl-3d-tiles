@@ -3,8 +3,10 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { plugin } from '../src/geolibre';
 import { DEFAULT_TILESET_URL, ThreeDTilesControl } from '../src/lib/core/ThreeDTilesControl';
+import { MercatorCoordinate } from 'maplibre-gl';
 import {
   ecefToLngLatAlt,
+  lngLatAltToEcef,
   patchGltfTextureLoaderForBlob,
   ThreeDTilesLayer,
 } from '../src/lib/core/ThreeDTilesLayer';
@@ -157,13 +159,14 @@ describe('ThreeDTilesLayer', () => {
 function loadLayerWithCenter(
   center: THREE.Vector3,
   altitudeOffset = 0,
+  radius = 100,
 ): { layer: ThreeDTilesLayer; group: THREE.Object3D; triggerRepaint: () => void } {
   const group = new THREE.Object3D();
   const tiles = {
     group,
     getBoundingSphere: vi.fn((sphere: THREE.Sphere) => {
       sphere.center.copy(center);
-      sphere.radius = 100;
+      sphere.radius = radius;
       return true;
     }),
     removeEventListener: vi.fn(),
@@ -206,8 +209,19 @@ describe('ThreeDTilesLayer orientation', () => {
     );
     const east = new THREE.Vector3(-Math.sin(lngRad), Math.cos(lngRad), 0);
 
-    const upPoint = center.clone().addScaledVector(up, 100).applyMatrix4(group.matrix);
-    const eastPoint = center.clone().addScaledVector(east, 100).applyMatrix4(group.matrix);
+    // Measure relative to the mapped center: the frame origin is rebuilt from
+    // the center's lng/lat/alt, so it can sit a few millimeters off it.
+    const origin = center.clone().applyMatrix4(group.matrix);
+    const upPoint = center
+      .clone()
+      .addScaledVector(up, 100)
+      .applyMatrix4(group.matrix)
+      .sub(origin);
+    const eastPoint = center
+      .clone()
+      .addScaledVector(east, 100)
+      .applyMatrix4(group.matrix)
+      .sub(origin);
 
     // 100 m straight up maps to +100 on the model Y (up) axis only.
     expect(upPoint.x).toBeCloseTo(0, 3);
@@ -228,6 +242,80 @@ describe('ThreeDTilesLayer orientation', () => {
 
     expect(layer.getMetadata()?.altitude).toBeCloseTo(baseAltitude - 250, 3);
     expect(triggerRepaint).toHaveBeenCalled();
+  });
+});
+
+/** Map an ECEF vertex through the layer's model transforms into Mercator units. */
+function vertexToMercator(
+  layer: ThreeDTilesLayer,
+  group: THREE.Object3D,
+  ecef: THREE.Vector3,
+): THREE.Vector3 {
+  const localTransform = (layer as unknown as { _localTransform: THREE.Matrix4 })
+    ._localTransform;
+  return ecef.clone().applyMatrix4(group.matrix).applyMatrix4(localTransform);
+}
+
+describe('ThreeDTilesLayer placement', () => {
+  // 3DBAG covers the whole Netherlands; its bounding sphere center sits near
+  // Utrecht while users look at Amsterdam, ~40 km away (issue: buildings
+  // drawn tens of meters off the basemap).
+  const tilesetCenter = lngLatAltToEcef(5.25233, 52.12628, -1000);
+  const damSquare: [number, number] = [4.8926, 52.3731];
+
+  function placementErrorMeters(followView: boolean): number {
+    const { layer, group } = loadLayerWithCenter(tilesetCenter, -43, 160000);
+    if (followView) {
+      const internals = layer as unknown as {
+        _map: { getCenter: () => { lng: number; lat: number } };
+        _syncFrameToView: () => void;
+      };
+      internals._map.getCenter = () => ({ lng: damSquare[0], lat: damSquare[1] });
+      internals._syncFrameToView();
+    }
+
+    // A roof vertex 20 m above the ellipsoid at Dam Square.
+    const actual = vertexToMercator(layer, group, lngLatAltToEcef(...damSquare, 20));
+    const expected = MercatorCoordinate.fromLngLat(damSquare, 20 - 43);
+    const metersPerUnit = 1 / expected.meterInMercatorCoordinateUnits();
+    return (
+      Math.hypot(actual.x - expected.x, actual.y - expected.y, actual.z - expected.z) *
+      metersPerUnit
+    );
+  }
+
+  it('misplaces geometry far from the anchor when the frame stays at the tileset center', () => {
+    // Guards the premise of the fix: a single tangent plane is not good enough.
+    expect(placementErrorMeters(false)).toBeGreaterThan(10);
+  });
+
+  it('places geometry at the view center on its true Mercator position', () => {
+    expect(placementErrorMeters(true)).toBeLessThan(0.01);
+  });
+
+  it('keeps the frame anchor inside the tileset bounds when the view is far away', () => {
+    const { layer } = loadLayerWithCenter(tilesetCenter, 0, 160000);
+    const internals = layer as unknown as {
+      _map: { getCenter: () => { lng: number; lat: number } };
+      _syncFrameToView: () => void;
+      _frameAnchor: { lng: number; lat: number };
+    };
+    internals._map.getCenter = () => ({ lng: -122.4, lat: 37.8 });
+    internals._syncFrameToView();
+
+    const anchor = lngLatAltToEcef(
+      internals._frameAnchor.lng,
+      internals._frameAnchor.lat,
+      -1000,
+    );
+    expect(anchor.distanceTo(tilesetCenter)).toBeLessThanOrEqual(160000 + 1);
+  });
+
+  it('round-trips lngLatAltToEcef through ecefToLngLatAlt', () => {
+    const { lng, lat, alt } = ecefToLngLatAlt(...lngLatAltToEcef(4.8926, 52.3731, 25).toArray());
+    expect(lng).toBeCloseTo(4.8926, 8);
+    expect(lat).toBeCloseTo(52.3731, 8);
+    expect(alt).toBeCloseTo(25, 3);
   });
 });
 
