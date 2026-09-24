@@ -622,7 +622,10 @@ export class ThreeDTilesControl implements IControl {
       'number',
       String(this._state.altitudeOffset),
     );
-    this._altitudeInput.step = '1';
+    // Any value, not whole meters: the panel is a <form>, and a fractional
+    // offset (typed, or from a sample) would fail step validation and block
+    // "Add tileset".
+    this._altitudeInput.step = 'any';
     // The form mirrors the active tileset (see `_syncFromActiveTileset`), so
     // editing the offset re-positions the loaded tileset live instead of only
     // taking effect on the next load. With no active tileset the value is just

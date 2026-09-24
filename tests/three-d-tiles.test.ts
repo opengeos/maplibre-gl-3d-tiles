@@ -409,6 +409,7 @@ describe('ThreeDTilesControl', () => {
       sampleData: [
         { label: 'Plain', url: 'https://example.com/plain/tileset.json' },
         { label: '3DBAG', url: 'https://example.com/bag/tileset.json', altitudeOffset: -43 },
+        { label: 'Fractional', url: 'https://example.com/f/tileset.json', altitudeOffset: -43.5 },
       ],
     });
     controlsContainer.appendChild(control.onAdd(map as never));
@@ -424,6 +425,11 @@ describe('ThreeDTilesControl', () => {
     expect(altitudeInput.value).toBe('-300');
     options[1].click();
     expect(altitudeInput.value).toBe('-43');
+    options[2].click();
+    expect(altitudeInput.value).toBe('-43.5');
+    // A fractional offset must not fail the form's step validation, or
+    // "Add tileset" would silently refuse to submit.
+    expect(altitudeInput.checkValidity()).toBe(true);
   });
 
   it('orders URL, layer name, request headers, and before layer ID fields first', () => {
