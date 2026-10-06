@@ -3,8 +3,20 @@ import react from "@vitejs/plugin-react";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import dts from "vite-plugin-dts";
+import pkg from "./package.json";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// Every runtime dependency and peer stays an import in dist, so the consumer's
+// bundler resolves one shared copy. Inlining three baked a second Three.js
+// into dist, which a host app that also uses three then loads twice
+// ("Multiple instances of Three.js").
+const externalPackages = [
+  ...Object.keys(pkg.dependencies ?? {}),
+  ...Object.keys(pkg.peerDependencies ?? {}),
+];
+const isExternal = (id: string) =>
+  externalPackages.some((name) => id === name || id.startsWith(`${name}/`));
 
 export default defineConfig({
   plugins: [
@@ -34,7 +46,7 @@ export default defineConfig({
       },
     },
     rollupOptions: {
-      external: ["react", "react-dom", "maplibre-gl"],
+      external: isExternal,
       output: {
         globals: {
           react: "React",
