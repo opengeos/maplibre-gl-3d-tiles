@@ -191,6 +191,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
   private _loadTilesetHandler?: () => void;
   private _loadErrorHandler?: (event: { error: Error }) => void;
   private _loadModelHandler?: (event: { scene: THREE.Object3D }) => void;
+  private _repaintHandler?: () => void;
   private _metadataRetryFrame: number | null = null;
   private _metadataRetryCount = 0;
 
@@ -273,11 +274,15 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._tilesCamera.matrixWorldInverse.copy(viewMatrix);
     this._tilesCamera.matrixWorld.copy(viewMatrix).invert();
 
+    // Select tiles for this frame's camera before drawing, so the frame shows
+    // the current selection rather than the previous one. The layer does not
+    // request another frame here: MapLibre already repaints while the camera
+    // moves, and TilesRenderer reports finished loads through `needs-update`
+    // (see `_initTiles`), so an idle map stops rendering once tiles settle.
+    this._tiles.update();
     this._renderer.resetState();
     this._applyOpacity();
     this._renderer.render(this._scene, this._camera);
-    this._tiles.update();
-    this._map.triggerRepaint();
   }
 
   onRemove(): void {
@@ -292,6 +297,9 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     }
     if (this._tiles && this._loadModelHandler) {
       this._tiles.removeEventListener('load-model', this._loadModelHandler);
+    }
+    if (this._tiles && this._repaintHandler) {
+      this._tiles.removeEventListener('needs-update', this._repaintHandler);
     }
 
     this._tiles?.dispose();
@@ -315,6 +323,7 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._loadTilesetHandler = undefined;
     this._loadErrorHandler = undefined;
     this._loadModelHandler = undefined;
+    this._repaintHandler = undefined;
     this._metadataRetryFrame = null;
     this._metadataRetryCount = 0;
   }
@@ -412,6 +421,12 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
     this._tiles.addEventListener('load-error', this._loadErrorHandler);
     this._tiles.addEventListener('load-model', this._loadModelHandler);
 
+    // TilesRenderer loads tiles asynchronously and dispatches `needs-update`
+    // when a tileset or tile finishes loading. That is the only change MapLibre
+    // cannot see on its own, so it drives repaints instead of a continuous loop.
+    this._repaintHandler = () => this._map?.triggerRepaint();
+    this._tiles.addEventListener('needs-update', this._repaintHandler);
+
     this._updateLocalTransform([0, 0, 0]);
     this._applyOpacity();
   }
@@ -480,6 +495,9 @@ export class ThreeDTilesLayer implements CustomLayerInterface {
       radius: sphere.radius,
     };
     this._options.onLoad?.(this._metadata);
+    // The frame may be applied from a metadata retry outside of a render, so
+    // ask for a frame that draws the tileset at its new placement.
+    this._map?.triggerRepaint();
   }
 
   /**

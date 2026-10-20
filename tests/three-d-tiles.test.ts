@@ -237,6 +237,8 @@ describe('ThreeDTilesLayer orientation', () => {
     const center = new THREE.Vector3(6378137, 0, 0);
     const { layer, triggerRepaint } = loadLayerWithCenter(center, 0);
     const baseAltitude = layer.getMetadata()?.altitude ?? 0;
+    // Loading the tileset already requests a frame; isolate the offset change.
+    vi.mocked(triggerRepaint).mockClear();
 
     layer.setAltitudeOffset(-250);
 
